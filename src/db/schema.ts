@@ -484,6 +484,43 @@ export const apiTokens = pgTable(
 	}),
 );
 
+export const pluggyItems = pgTable(
+	"itens_pluggy",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		/** Identificador do item no Pluggy */
+		pluggyItemId: text("pluggy_item_id").notNull(),
+		/** 200 = Meu Pluggy */
+		connectorId: integer("connector_id"),
+		connectorName: text("connector_name"),
+		status: text("status").notNull(),
+		lastSyncedAt: timestamp("last_synced_at", {
+			mode: "date",
+			withTimezone: true,
+		}),
+		/** Reservado para a fatia de sincronizacao */
+		lastTransactionCursor: text("last_transaction_cursor"),
+		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		userItemIdx: uniqueIndex("itens_pluggy_user_id_pluggy_item_id_idx").on(
+			table.userId,
+			table.pluggyItemId,
+		),
+		pluggyItemIdIdx: index("itens_pluggy_pluggy_item_id_idx").on(
+			table.pluggyItemId,
+		),
+	}),
+);
+
 export const inboxItems = pgTable(
 	"pre_lancamentos",
 	{
@@ -874,6 +911,13 @@ export const savedInsightsRelations = relations(savedInsights, ({ one }) => ({
 export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
 	user: one(user, {
 		fields: [apiTokens.userId],
+		references: [user.id],
+	}),
+}));
+
+export const pluggyItemsRelations = relations(pluggyItems, ({ one }) => ({
+	user: one(user, {
+		fields: [pluggyItems.userId],
 		references: [user.id],
 	}),
 }));
