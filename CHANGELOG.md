@@ -5,6 +5,18 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.8.0] - 2026-09-17
+
+Esta versão adiciona a base da integração com Open Finance pelo Pluggy. Por enquanto ela cobre apenas a conexão: você vincula no OpenMonetis um item já conectado no Meu Pluggy e acompanha o status dele. Nenhum dado financeiro é importado ainda — contas e lançamentos ficam para uma versão seguinte.
+
+### Adicionado
+- Ajustes: nova aba Open Finance para vincular e remover conexões do Meu Pluggy pelo itemId, exibindo instituição e status de cada uma.
+- Integração: cliente da API do Pluggy com autenticação por API Key, cache de 110 minutos e validação de todas as respostas.
+
+### Alterado
+- ATENÇÃO — mudança no banco de dados: esta versão adiciona a tabela itens_pluggy. Aplique a migração 0035_unique_silvermane.sql antes de iniciar a aplicação atualizada (pnpm run db:migrate em instalações manuais). A imagem Docker tenta aplicar as migrações automaticamente durante a inicialização.
+- Configuração: novas variáveis opcionais PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET. Sem elas, nada muda para quem não usa Open Finance.
+
 ## [2.7.13] - 2026-08-09
 
 Esta versão atualiza a base técnica do OpenMonetis com as correções de segurança e desempenho do Next.js 16.3, acelera as verificações de tipos, melhora a recuperação de falhas nas áreas mais complexas do aplicativo e corrige a importação de extratos OFX que reutilizam identificadores bancários.

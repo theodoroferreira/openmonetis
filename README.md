@@ -10,7 +10,7 @@
 
 > **Não há versão online hospedada.** Você precisa clonar o repositório e rodar localmente ou no seu próprio servidor.
 
-[![Version](https://img.shields.io/badge/version-2.7.13-blue?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.8.0-blue?style=flat-square)](CHANGELOG.md)
 [![Next.js](https://img.shields.io/badge/Next.js-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
@@ -486,6 +486,12 @@ OLLAMA_API_KEY=
 # Ambas as variáveis são runtime — basta definir no host; nenhum build arg necessário.
 LOGO_DEV_TOKEN=
 LOGO_DEV_SECRET_KEY=
+
+# Open Finance / Pluggy (opcional, acesso pessoal gratuito via Meu Pluggy)
+# Conecte seus bancos em https://meu.pluggy.ai, vincule os items ao seu
+# aplicativo no Pluggy Dashboard e copie as credenciais de lá.
+PLUGGY_CLIENT_ID=
+PLUGGY_CLIENT_SECRET=
 ```
 
 ### BETTER_AUTH_TRUSTED_ORIGINS
@@ -628,8 +634,8 @@ Antes de começar, leia o [`CLAUDE.md`](CLAUDE.md) — ele documenta a arquitetu
 As validações rodam em pull requests e em cada push na `main`. A publicação só começa quando uma tag SemVer aponta para um commit validado e a versão da tag corresponde ao `package.json` e ao `CHANGELOG.md`.
 
 ```bash
-git tag -a v2.7.13 -m "v2.7.13"
-git push origin v2.7.13
+git tag -a v2.8.0 -m "v2.8.0"
+git push origin v2.8.0
 ```
 
 O workflow da tag valida o código, publica as imagens Docker versionadas e `latest` e, somente depois, cria a GitHub Release com as notas do changelog.
