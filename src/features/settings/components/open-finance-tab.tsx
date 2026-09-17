@@ -91,9 +91,16 @@ export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
 		if (!removeId) return;
 
 		setIsRemoving(true);
+		setError(null);
 
 		try {
-			await disconnectPluggyItemAction(removeId);
+			const result = await disconnectPluggyItemAction(removeId);
+
+			if (!result.success) {
+				setError(result.error ?? "Erro ao remover a conexão");
+			}
+		} catch {
+			setError("Erro ao remover a conexão");
 		} finally {
 			setIsRemoving(false);
 			setRemoveId(null);
