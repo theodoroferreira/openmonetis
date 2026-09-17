@@ -9,6 +9,7 @@ import { db } from "@/shared/lib/db";
 import {
 	fetchPluggyItem,
 	isPluggyConfigured,
+	PluggyError,
 } from "@/shared/lib/pluggy/client";
 
 type ActionResponse<T = void> = {
@@ -25,6 +26,38 @@ const connectSchema = z.object({
 		.uuid("O itemId deve ser um UUID válido, copiado do Pluggy Dashboard."),
 });
 
+const disconnectSchema = z.string().trim().uuid("ID inválido.");
+
+function handlePluggyActionError(
+	error: unknown,
+	actionName: string,
+	defaultMessage = "Não foi possível processar a requisição no Pluggy.",
+): ActionResponse {
+	if (error instanceof PluggyError) {
+		if (error.status === 401 || error.status === 403) {
+			return {
+				success: false,
+				error:
+					"Credenciais da integração inválidas ou expiradas. Verifique PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET.",
+			};
+		}
+
+		if (error.status === 404) {
+			return {
+				success: false,
+				error:
+					"Item não encontrado para esta aplicação. No Pluggy Dashboard, acesse sua aplicação, clique em 'Ir para Demo', abra o menu de três pontos do item e selecione 'Copiar Item ID'.",
+			};
+		}
+	}
+
+	console.error(`[${actionName}]`, error);
+	return {
+		success: false,
+		error: defaultMessage,
+	};
+}
+
 /**
  * Vincula um item do Pluggy ao usuário atual.
  *
@@ -34,6 +67,17 @@ const connectSchema = z.object({
 export async function connectPluggyItemAction(data: {
 	itemId: string;
 }): Promise<ActionResponse> {
+	const parsed = connectSchema.safeParse(data);
+
+	if (!parsed.success) {
+		return {
+			success: false,
+			error: parsed.error.issues[0]?.message ?? "Dados inválidos.",
+		};
+	}
+
+	const { itemId } = parsed.data;
+
 	try {
 		if (!isPluggyConfigured()) {
 			return { success: false, error: "Integração não configurada." };
@@ -46,7 +90,6 @@ export async function connectPluggyItemAction(data: {
 		}
 
 		const userId = session.user.id;
-		const { itemId } = connectSchema.parse(data);
 
 		const existing = await db.query.pluggyItems.findFirst({
 			where: and(
@@ -73,18 +116,11 @@ export async function connectPluggyItemAction(data: {
 
 		return { success: true, message: "Conexão vinculada com sucesso." };
 	} catch (error) {
-		if (error instanceof z.ZodError) {
-			return {
-				success: false,
-				error: error.issues[0]?.message ?? "Dados inválidos.",
-			};
-		}
-
-		console.error("[connectPluggyItemAction]", error);
-		return {
-			success: false,
-			error: "Não foi possível vincular o item. Verifique o itemId.",
-		};
+		return handlePluggyActionError(
+			error,
+			"connectPluggyItemAction",
+			"Não foi possível vincular o item. Tente novamente mais tarde.",
+		);
 	}
 }
 
@@ -92,6 +128,17 @@ export async function connectPluggyItemAction(data: {
 export async function disconnectPluggyItemAction(
 	id: string,
 ): Promise<ActionResponse> {
+	const parsed = disconnectSchema.safeParse(id);
+
+	if (!parsed.success) {
+		return {
+			success: false,
+			error: parsed.error.issues[0]?.message ?? "ID inválido.",
+		};
+	}
+
+	const parsedId = parsed.data;
+
 	try {
 		const session = await getOptionalUserSession();
 
@@ -100,7 +147,6 @@ export async function disconnectPluggyItemAction(
 		}
 
 		const userId = session.user.id;
-		const parsedId = z.string().uuid().parse(id);
 
 		const deleted = await db
 			.delete(pluggyItems)
