@@ -10,7 +10,7 @@ import { useState } from "react";
 import {
 	connectPluggyItemAction,
 	disconnectPluggyItemAction,
-} from "@/features/settings/actions";
+} from "@/features/settings/actions/open-finance";
 import {
 	AlertDialog,
 	AlertDialogAction,
