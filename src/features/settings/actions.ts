@@ -778,3 +778,8 @@ export async function revokeApiTokenAction(
 		};
 	}
 }
+
+export {
+	connectPluggyItemAction,
+	disconnectPluggyItemAction,
+} from "@/features/settings/actions/open-finance";
