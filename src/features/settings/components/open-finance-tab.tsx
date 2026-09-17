@@ -5,11 +5,13 @@ import {
 	RiDeleteBinLine,
 	RiExternalLinkLine,
 	RiLinkM,
+	RiRefreshLine,
 } from "@remixicon/react";
 import { useState } from "react";
 import {
 	connectPluggyItemAction,
 	disconnectPluggyItemAction,
+	refreshPluggyItemAction,
 } from "@/features/settings/actions/open-finance";
 import {
 	AlertDialog,
@@ -26,6 +28,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { formatDateTime } from "@/shared/utils/date";
+import { cn } from "@/shared/utils/ui";
 
 interface PluggyItemRow {
 	id: string;
@@ -64,6 +67,7 @@ export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [removeId, setRemoveId] = useState<string | null>(null);
 	const [isRemoving, setIsRemoving] = useState(false);
+	const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
 	const handleConnect = async () => {
 		const trimmed = itemId.trim();
@@ -84,6 +88,23 @@ export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
 			setError("Erro ao vincular a conexão");
 		} finally {
 			setIsConnecting(false);
+		}
+	};
+
+	const handleRefresh = async (id: string) => {
+		setRefreshingId(id);
+		setError(null);
+
+		try {
+			const result = await refreshPluggyItemAction(id);
+
+			if (!result.success) {
+				setError(result.error ?? "Erro ao atualizar a conexão");
+			}
+		} catch {
+			setError("Erro ao atualizar a conexão");
+		} finally {
+			setRefreshingId(null);
 		}
 	};
 
@@ -179,15 +200,42 @@ export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
 									<p className="text-xs text-muted-foreground">
 										Vinculado em {formatDateTime(item.createdAt)}
 									</p>
+									<p className="text-xs text-muted-foreground">
+										{item.lastSyncedAt
+											? `Status verificado em ${formatDateTime(item.lastSyncedAt)}`
+											: "Status nunca verificado"}
+									</p>
 								</div>
-								<Button
-									variant="ghost"
-									size="icon"
-									onClick={() => setRemoveId(item.id)}
-									aria-label="Remover conexão"
-								>
-									<RiDeleteBinLine className="size-4" />
-								</Button>
+								<div className="flex items-center gap-1">
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										onClick={() => handleRefresh(item.id)}
+										disabled={refreshingId === item.id}
+										aria-label="Atualizar status da conexão"
+										title="Atualizar status"
+									>
+										<RiRefreshLine
+											className={cn(
+												"size-4 transition-transform duration-200",
+												refreshingId === item.id && "animate-spin",
+											)}
+											aria-hidden
+										/>
+									</Button>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										onClick={() => setRemoveId(item.id)}
+										disabled={refreshingId === item.id}
+										aria-label="Remover conexão"
+										title="Remover conexão"
+									>
+										<RiDeleteBinLine className="size-4" />
+									</Button>
+								</div>
 							</li>
 						);
 					})}

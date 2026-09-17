@@ -137,8 +137,8 @@ export default async function Page() {
 								<div>
 									<h2 className="text-xl font-semibold mb-1">Open Finance</h2>
 									<p className="text-sm text-muted-foreground">
-										Vincule conexões do Meu Pluggy para acompanhar o status das
-										suas instituições financeiras no OpenMonetis.
+										Vincule conexões do Meu Pluggy e verifique o status das suas
+										instituições financeiras sob demanda no OpenMonetis.
 									</p>
 								</div>
 								<Separator />

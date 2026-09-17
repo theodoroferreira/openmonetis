@@ -27,6 +27,7 @@ const connectSchema = z.object({
 });
 
 const disconnectSchema = z.string().trim().uuid("ID inválido.");
+const refreshSchema = z.string().trim().uuid("ID inválido.");
 
 function handlePluggyActionError(
 	error: unknown,
@@ -56,6 +57,12 @@ function handlePluggyActionError(
 		success: false,
 		error: defaultMessage,
 	};
+}
+
+function parseNullableDate(value?: string | null): Date | null {
+	if (!value) return null;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -123,6 +130,7 @@ export async function connectPluggyItemAction(data: {
 			connectorId: item.connector.id,
 			connectorName: item.connector.name,
 			status: item.status,
+			lastSyncedAt: parseNullableDate(item.updatedAt),
 		});
 
 		revalidatePath("/settings");
@@ -183,5 +191,64 @@ export async function disconnectPluggyItemAction(
 	} catch (error) {
 		console.error("[disconnectPluggyItemAction]", error);
 		return { success: false, error: "Não foi possível remover a conexão." };
+	}
+}
+
+/** Atualiza o status de um item buscando os dados mais recentes no Pluggy. */
+export async function refreshPluggyItemAction(
+	id: string,
+): Promise<ActionResponse> {
+	const parsed = refreshSchema.safeParse(id);
+
+	if (!parsed.success) {
+		return {
+			success: false,
+			error: parsed.error.issues[0]?.message ?? "ID inválido.",
+		};
+	}
+
+	const parsedId = parsed.data;
+
+	try {
+		const session = await getOptionalUserSession();
+
+		if (!session?.user?.id) {
+			return { success: false, error: "Não autenticado" };
+		}
+
+		if (!isPluggyConfigured()) {
+			return { success: false, error: "Integração não configurada." };
+		}
+
+		const userId = session.user.id;
+
+		const currentItem = await db.query.pluggyItems.findFirst({
+			where: and(eq(pluggyItems.id, parsedId), eq(pluggyItems.userId, userId)),
+		});
+
+		if (!currentItem) {
+			return { success: false, error: "Conexão não encontrada." };
+		}
+
+		const item = await fetchPluggyItem(currentItem.pluggyItemId);
+
+		await db
+			.update(pluggyItems)
+			.set({
+				status: item.status,
+				lastSyncedAt: parseNullableDate(item.updatedAt),
+				updatedAt: new Date(),
+			})
+			.where(and(eq(pluggyItems.id, parsedId), eq(pluggyItems.userId, userId)));
+
+		revalidatePath("/settings");
+
+		return { success: true, message: "Conexão atualizada com sucesso." };
+	} catch (error) {
+		return handlePluggyActionError(
+			error,
+			"refreshPluggyItemAction",
+			"Não foi possível atualizar a conexão. Tente novamente mais tarde.",
+		);
 	}
 }
