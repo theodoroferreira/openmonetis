@@ -5,6 +5,7 @@ import { connection } from "next/server";
 
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
+import { OpenFinanceTab } from "@/features/settings/components/open-finance-tab";
 import { PasskeysForm } from "@/features/settings/components/passkeys-form";
 import { PreferencesForm } from "@/features/settings/components/preferences-form";
 import { UpdateEmailForm } from "@/features/settings/components/update-email-form";
@@ -34,8 +35,13 @@ export default async function Page() {
 	const userName = session.user.name || "";
 	const userEmail = session.user.email || "";
 
-	const { authProvider, userPreferences, userApiTokens } =
-		await fetchSettingsPageData(session.user.id);
+	const {
+		authProvider,
+		userPreferences,
+		userApiTokens,
+		pluggyEnabled,
+		pluggyItems,
+	} = await fetchSettingsPageData(session.user.id);
 
 	return (
 		<div className="w-full">
@@ -46,6 +52,9 @@ export default async function Page() {
 						<TabsList className="inline-flex w-max flex-nowrap md:w-full">
 							<TabsTrigger value="preferencias">Preferências</TabsTrigger>
 							<TabsTrigger value="companion">Companion</TabsTrigger>
+							{pluggyEnabled ? (
+								<TabsTrigger value="open-finance">Open Finance</TabsTrigger>
+							) : null}
 							<TabsTrigger value="nome">Alterar nome</TabsTrigger>
 							<TabsTrigger value="senha">Alterar senha</TabsTrigger>
 							<TabsTrigger value="passkeys">Passkeys</TabsTrigger>
@@ -120,6 +129,24 @@ export default async function Page() {
 						</div>
 					</Card>
 				</TabsContent>
+
+				{pluggyEnabled ? (
+					<TabsContent value="open-finance" className="mt-4">
+						<Card className="p-6">
+							<div className="space-y-4">
+								<div>
+									<h2 className="text-xl font-semibold mb-1">Open Finance</h2>
+									<p className="text-sm text-muted-foreground">
+										Vincule conexões do Meu Pluggy para acompanhar o status das
+										suas instituições financeiras no OpenMonetis.
+									</p>
+								</div>
+								<Separator />
+								<OpenFinanceTab items={pluggyItems} />
+							</div>
+						</Card>
+					</TabsContent>
+				) : null}
 
 				<TabsContent value="nome" className="mt-4">
 					<Card className="p-6">
