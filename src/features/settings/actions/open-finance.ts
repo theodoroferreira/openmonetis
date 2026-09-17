@@ -58,6 +58,19 @@ function handlePluggyActionError(
 	};
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+
+	const candidate = error as {
+		code?: string;
+		cause?: { code?: string };
+	};
+
+	return candidate.code === "23505" || candidate.cause?.code === "23505";
+}
+
 /**
  * Vincula um item do Pluggy ao usuário atual.
  *
@@ -116,6 +129,13 @@ export async function connectPluggyItemAction(data: {
 
 		return { success: true, message: "Conexão vinculada com sucesso." };
 	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			return {
+				success: false,
+				error: "Este item já está vinculado.",
+			};
+		}
+
 		return handlePluggyActionError(
 			error,
 			"connectPluggyItemAction",
