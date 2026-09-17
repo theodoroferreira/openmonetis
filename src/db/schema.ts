@@ -515,7 +515,7 @@ export const pluggyItems = pgTable(
 			table.userId,
 			table.pluggyItemId,
 		),
-		pluggyItemIdIdx: index("itens_pluggy_pluggy_item_id_idx").on(
+		pluggyItemIdIdx: uniqueIndex("itens_pluggy_pluggy_item_id_idx").on(
 			table.pluggyItemId,
 		),
 	}),
