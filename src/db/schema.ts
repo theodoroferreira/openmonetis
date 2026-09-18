@@ -642,6 +642,18 @@ export const inboxItems = pgTable(
 		parsedInstallmentCount: integer("parsed_installment_count"),
 		parsedCurrentInstallment: integer("parsed_current_installment"),
 
+		// Campos de moeda estrangeira (multi-moeda)
+		parsedCurrency: text("parsed_moeda_origem"),
+		parsedOriginAmount: numeric("parsed_valor_origem", {
+			precision: 12,
+			scale: 2,
+		}),
+		parsedExchangeRate: numeric("parsed_taxa_cambio", {
+			precision: 18,
+			scale: 8,
+		}),
+		parsedRateSource: text("parsed_cotacao_fonte"),
+
 		// Status de processamento
 		status: text("status").notNull().default("pending"), // pending, processed, discarded
 
@@ -777,6 +789,16 @@ export const transactions = pgTable(
 		paymentMethod: text("forma_pagamento").notNull(),
 		note: text("anotacao"),
 		amount: numeric("valor", { precision: 12, scale: 2 }).notNull(),
+		/**
+		 * Moeda em que a compra foi feita. NULL = lancamento em BRL puro.
+		 * Os cinco campos de cambio sao preenchidos em bloco ou todos nulos
+		 * (constraint `lancamentos_moeda_origem_completo`).
+		 */
+		originCurrency: text("moeda_origem"),
+		originAmount: numeric("valor_origem", { precision: 12, scale: 2 }),
+		exchangeRate: numeric("taxa_cambio", { precision: 18, scale: 8 }),
+		rateSource: text("cotacao_fonte"),
+		rateDate: date("cotacao_data", { mode: "string" }),
 		purchaseDate: date("data_compra", { mode: "date" }).notNull(),
 		transactionType: text("tipo_transacao").notNull(),
 		installmentCount: smallint("qtde_parcela"),
