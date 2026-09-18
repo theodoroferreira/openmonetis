@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
 	type AnyPgColumn,
 	boolean,
+	check,
 	date,
 	index,
 	integer,
@@ -501,8 +502,6 @@ export const pluggyItems = pgTable(
 			mode: "date",
 			withTimezone: true,
 		}),
-		/** Reservado para a fatia de sincronizacao */
-		lastTransactionCursor: text("last_transaction_cursor"),
 		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -517,6 +516,78 @@ export const pluggyItems = pgTable(
 		),
 		pluggyItemIdIdx: uniqueIndex("itens_pluggy_pluggy_item_id_idx").on(
 			table.pluggyItemId,
+		),
+	}),
+);
+
+export const pluggyAccounts = pgTable(
+	"contas_pluggy",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		itemId: uuid("item_id")
+			.notNull()
+			.references(() => pluggyItems.id, { onDelete: "cascade" }),
+		pluggyAccountId: text("pluggy_account_id").notNull(),
+		type: text("tipo").notNull(),
+		subtype: text("subtipo"),
+		name: text("nome").notNull(),
+		number: text("numero"),
+		currency: text("moeda"),
+		balance: numeric("saldo", { precision: 12, scale: 2 }),
+		balanceUpdatedAt: timestamp("saldo_atualizado_em", {
+			mode: "date",
+			withTimezone: true,
+		}),
+		limit: numeric("limite", { precision: 12, scale: 2 }),
+		availableLimit: numeric("limite_disponivel", {
+			precision: 12,
+			scale: 2,
+		}),
+		closingDay: text("dt_fechamento"),
+		dueDay: text("dt_vencimento"),
+		brand: text("bandeira"),
+		statusVinculo: text("status_vinculo", {
+			enum: ["pendente", "vinculada", "ignorada"],
+		})
+			.notNull()
+			.default("pendente"),
+		accountId: uuid("conta_id").references(() => financialAccounts.id, {
+			onDelete: "set null",
+		}),
+		cardId: uuid("cartao_id").references(() => cards.id, {
+			onDelete: "set null",
+		}),
+		lastTransactionCursor: text("last_transaction_cursor"),
+		lastSyncedAt: timestamp("last_synced_at", {
+			mode: "date",
+			withTimezone: true,
+		}),
+		syncingAt: timestamp("syncing_at", {
+			mode: "date",
+			withTimezone: true,
+		}),
+		lastSyncError: text("last_sync_error"),
+		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		pluggyAccountIdIdx: uniqueIndex("contas_pluggy_pluggy_account_id_idx").on(
+			table.pluggyAccountId,
+		),
+		userIdItemIdIdx: index("contas_pluggy_user_id_item_id_idx").on(
+			table.userId,
+			table.itemId,
+		),
+		vinculoCheck: check(
+			"contas_pluggy_vinculo_check",
+			sql`("status_vinculo" = 'vinculada' AND (("tipo" = 'BANK' AND "conta_id" IS NOT NULL AND "cartao_id" IS NULL) OR ("tipo" = 'CREDIT' AND "cartao_id" IS NOT NULL AND "conta_id" IS NULL))) OR ("status_vinculo" != 'vinculada' AND "conta_id" IS NULL AND "cartao_id" IS NULL)`,
 		),
 	}),
 );
@@ -915,10 +986,30 @@ export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
 	}),
 }));
 
-export const pluggyItemsRelations = relations(pluggyItems, ({ one }) => ({
+export const pluggyItemsRelations = relations(pluggyItems, ({ one, many }) => ({
 	user: one(user, {
 		fields: [pluggyItems.userId],
 		references: [user.id],
+	}),
+	accounts: many(pluggyAccounts),
+}));
+
+export const pluggyAccountsRelations = relations(pluggyAccounts, ({ one }) => ({
+	user: one(user, {
+		fields: [pluggyAccounts.userId],
+		references: [user.id],
+	}),
+	item: one(pluggyItems, {
+		fields: [pluggyAccounts.itemId],
+		references: [pluggyItems.id],
+	}),
+	financialAccount: one(financialAccounts, {
+		fields: [pluggyAccounts.accountId],
+		references: [financialAccounts.id],
+	}),
+	card: one(cards, {
+		fields: [pluggyAccounts.cardId],
+		references: [cards.id],
 	}),
 }));
 
