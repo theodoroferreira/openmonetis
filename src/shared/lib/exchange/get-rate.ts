@@ -38,12 +38,17 @@ export async function getExchangeRate(
 		return null;
 	}
 
-	const cached = await db.query.exchangeRates.findFirst({
-		where: and(
-			eq(exchangeRates.currency, currency),
-			eq(exchangeRates.date, isoDate),
-		),
-	});
+	// Uma falha na leitura do cache (ex.: instabilidade momentanea do banco)
+	// nao pode abortar o Promise.all do sync do Pluggy: degrada para "sem
+	// cache" e segue para as fontes de rede abaixo.
+	const cached = await db.query.exchangeRates
+		.findFirst({
+			where: and(
+				eq(exchangeRates.currency, currency),
+				eq(exchangeRates.date, isoDate),
+			),
+		})
+		.catch(() => undefined);
 
 	if (cached) {
 		return {
@@ -71,6 +76,9 @@ export async function getExchangeRate(
 
 	// Cotacao historica e imutavel: conflito so pode ser corrida entre duas
 	// requisicoes simultaneas pedindo o mesmo par, entao ignorar e correto.
+	// Uma falha aqui (cache indisponivel) e engolida: a cotacao ja foi obtida
+	// da fonte externa, entao o sync do Pluggy nao deve abortar por causa de
+	// um cache que so existe para poupar chamadas futuras.
 	await db
 		.insert(exchangeRates)
 		.values({
@@ -80,7 +88,8 @@ export async function getExchangeRate(
 			source: fallback.fonte,
 			rateDate: fallback.dataCotacao,
 		})
-		.onConflictDoNothing();
+		.onConflictDoNothing()
+		.catch(() => undefined);
 
 	return {
 		taxa: fallback.taxa,
