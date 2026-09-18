@@ -581,6 +581,32 @@ export async function convertTransactionToInstallmentAction(
 				: existing.name;
 		const amountSign: 1 | -1 = existing.transactionType === "Despesa" ? -1 : 1;
 		const totalCents = Math.round(Math.abs(Number(existing.amount)) * 100);
+		const shares = [{ payerId: existing.payerId, amountCents: totalCents }];
+
+		// Lancamento em moeda estrangeira: preserva cambio da linha original e
+		// recalcula o valor de origem (buildTransactionRecords faz o rateio
+		// entre as parcelas a partir do total abaixo).
+		const existingHasExchange = Boolean(
+			existing.originCurrency &&
+				existing.exchangeRate &&
+				existing.rateSource &&
+				existing.rateDate,
+		);
+		const exchange = existingHasExchange
+			? {
+					currency: existing.originCurrency as string,
+					rate: Number(existing.exchangeRate),
+					source: existing.rateSource as string,
+					rateDate: existing.rateDate as string,
+				}
+			: null;
+		const originShareCents = existingHasExchange
+			? distributeProportionally(
+					Math.round(Math.abs(Number(existing.originAmount)) * 100),
+					shares.map((share) => share.amountCents),
+				)
+			: null;
+
 		const seriesId = randomUUID();
 		const records = buildTransactionRecords({
 			data: {
@@ -607,12 +633,12 @@ export async function convertTransactionToInstallmentAction(
 			purchaseDate: existing.purchaseDate,
 			dueDate: existing.dueDate,
 			boletoPaymentDate: null,
-			shares: [{ payerId: existing.payerId, amountCents: totalCents }],
+			shares,
 			amountSign,
 			shouldNullifySettled: true,
 			seriesId,
-			originShareCents: null,
-			exchange: null,
+			originShareCents,
+			exchange,
 		}).map((record) => ({
 			...record,
 			importBatchId: existing.importBatchId,
@@ -665,6 +691,11 @@ export async function convertTransactionToInstallmentAction(
 					condition: currentRow.condition,
 					name: currentRow.name,
 					amount: currentRow.amount,
+					originCurrency: currentRow.originCurrency,
+					originAmount: currentRow.originAmount,
+					exchangeRate: currentRow.exchangeRate,
+					rateSource: currentRow.rateSource,
+					rateDate: currentRow.rateDate,
 					installmentCount: currentRow.installmentCount,
 					currentInstallment: currentRow.currentInstallment,
 					recurrenceCount: null,
@@ -747,6 +778,32 @@ export async function convertTransactionToRecurringAction(
 
 		const amountSign: 1 | -1 = existing.transactionType === "Despesa" ? -1 : 1;
 		const totalCents = Math.round(Math.abs(Number(existing.amount)) * 100);
+		const shares = [{ payerId: existing.payerId, amountCents: totalCents }];
+
+		// Lancamento em moeda estrangeira: preserva cambio da linha original e
+		// recalcula o valor de origem (buildTransactionRecords faz o rateio
+		// entre as ocorrencias a partir do total abaixo).
+		const existingHasExchange = Boolean(
+			existing.originCurrency &&
+				existing.exchangeRate &&
+				existing.rateSource &&
+				existing.rateDate,
+		);
+		const exchange = existingHasExchange
+			? {
+					currency: existing.originCurrency as string,
+					rate: Number(existing.exchangeRate),
+					source: existing.rateSource as string,
+					rateDate: existing.rateDate as string,
+				}
+			: null;
+		const originShareCents = existingHasExchange
+			? distributeProportionally(
+					Math.round(Math.abs(Number(existing.originAmount)) * 100),
+					shares.map((share) => share.amountCents),
+				)
+			: null;
+
 		const seriesId = randomUUID();
 		const isCreditCard = existing.paymentMethod === "Cartão de crédito";
 		const records = buildTransactionRecords({
@@ -783,12 +840,12 @@ export async function convertTransactionToRecurringAction(
 			purchaseDate: existing.purchaseDate,
 			dueDate: existing.dueDate,
 			boletoPaymentDate: existing.boletoPaymentDate,
-			shares: [{ payerId: existing.payerId, amountCents: totalCents }],
+			shares,
 			amountSign,
 			shouldNullifySettled: isCreditCard,
 			seriesId,
-			originShareCents: null,
-			exchange: null,
+			originShareCents,
+			exchange,
 		}).map((record) => ({
 			...record,
 			importBatchId: existing.importBatchId,
@@ -843,6 +900,11 @@ export async function convertTransactionToRecurringAction(
 					condition: currentRow.condition,
 					name: currentRow.name,
 					amount: currentRow.amount,
+					originCurrency: currentRow.originCurrency,
+					originAmount: currentRow.originAmount,
+					exchangeRate: currentRow.exchangeRate,
+					rateSource: currentRow.rateSource,
+					rateDate: currentRow.rateDate,
 					recurrenceCount: currentRow.recurrenceCount,
 					installmentCount: null,
 					currentInstallment: null,
