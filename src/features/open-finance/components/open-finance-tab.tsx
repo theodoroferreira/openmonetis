@@ -10,11 +10,13 @@ import {
 	RiWallet2Line,
 } from "@remixicon/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
 	connectPluggyItemAction,
 	disconnectPluggyItemAction,
 	ignorePluggyAccountAction,
 	refreshPluggyItemAction,
+	syncPluggyNowAction,
 } from "@/features/open-finance/actions";
 import {
 	LinkAccountDialog,
@@ -157,12 +159,19 @@ function AccountListItem({
 						{maskedNumber ? ` · ${maskedNumber}` : ""}
 					</p>
 					{account.statusVinculo === "vinculada" ? (
-						<p className="truncate text-xs text-muted-foreground">
-							Vinculada a{" "}
-							<span className="font-medium text-foreground">
-								{linkedTargetName ?? "—"}
-							</span>
-						</p>
+						<>
+							<p className="truncate text-xs text-muted-foreground">
+								Vinculada a{" "}
+								<span className="font-medium text-foreground">
+									{linkedTargetName ?? "—"}
+								</span>
+							</p>
+							<p className="truncate text-xs text-muted-foreground">
+								{account.lastSyncedAt
+									? `Última sincronização em ${formatDateTime(account.lastSyncedAt)}`
+									: "Ainda não sincronizada"}
+							</p>
+						</>
 					) : null}
 					{account.lastSyncError ? (
 						<p className="truncate text-xs text-destructive">
@@ -287,6 +296,7 @@ export function OpenFinanceTab({
 	const [togglingAccountId, setTogglingAccountId] = useState<string | null>(
 		null,
 	);
+	const [isSyncing, setIsSyncing] = useState(false);
 
 	const linkAccount = linkAccountId
 		? items
@@ -347,6 +357,28 @@ export function OpenFinanceTab({
 			setError("Erro ao atualizar a conexão");
 		} finally {
 			setRefreshingId(null);
+		}
+	};
+
+	const handleSyncNow = async () => {
+		setIsSyncing(true);
+
+		try {
+			const result = await syncPluggyNowAction();
+
+			if (result.success && result.data) {
+				const { accountsSynced, accountsFailed, inboxItemsCreated } =
+					result.data;
+				toast.success(
+					`${accountsSynced} conta(s) sincronizada(s), ${accountsFailed} falha(s), ${inboxItemsCreated} item(ns) criado(s).`,
+				);
+			} else {
+				toast.error(result.error ?? "Erro ao sincronizar.");
+			}
+		} catch {
+			toast.error("Erro ao sincronizar.");
+		} finally {
+			setIsSyncing(false);
 		}
 	};
 
@@ -417,80 +449,97 @@ export function OpenFinanceTab({
 					Nenhuma conexão vinculada.
 				</p>
 			) : (
-				<ul className="space-y-2">
-					{items.map((item) => {
-						const status = statusLabel(item.status);
+				<div className="space-y-3">
+					<div className="flex justify-end">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={handleSyncNow}
+							disabled={isSyncing}
+						>
+							<RiRefreshLine
+								className={cn("size-4", isSyncing && "animate-spin")}
+								aria-hidden
+							/>
+							{isSyncing ? "Atualizando..." : "Atualizar agora"}
+						</Button>
+					</div>
+					<ul className="space-y-2">
+						{items.map((item) => {
+							const status = statusLabel(item.status);
 
-						return (
-							<li key={item.id} className="space-y-3 rounded-lg border p-3">
-								<div className="flex items-center justify-between gap-4">
-									<div className="min-w-0 space-y-1">
-										<div className="flex items-center gap-2">
-											<RiBankLine className="size-4 shrink-0 text-muted-foreground" />
-											<span className="font-medium">
-												{item.connectorName ?? "Conector desconhecido"}
-											</span>
-											<Badge variant={status.ok ? "success" : "destructive"}>
-												{status.label}
-											</Badge>
+							return (
+								<li key={item.id} className="space-y-3 rounded-lg border p-3">
+									<div className="flex items-center justify-between gap-4">
+										<div className="min-w-0 space-y-1">
+											<div className="flex items-center gap-2">
+												<RiBankLine className="size-4 shrink-0 text-muted-foreground" />
+												<span className="font-medium">
+													{item.connectorName ?? "Conector desconhecido"}
+												</span>
+												<Badge variant={status.ok ? "success" : "destructive"}>
+													{status.label}
+												</Badge>
+											</div>
+											<p className="truncate text-xs text-muted-foreground">
+												{item.pluggyItemId}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												Vinculado em {formatDateTime(item.createdAt)}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{item.lastSyncedAt
+													? `Status verificado em ${formatDateTime(item.lastSyncedAt)}`
+													: "Status nunca verificado"}
+											</p>
 										</div>
-										<p className="truncate text-xs text-muted-foreground">
-											{item.pluggyItemId}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											Vinculado em {formatDateTime(item.createdAt)}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{item.lastSyncedAt
-												? `Status verificado em ${formatDateTime(item.lastSyncedAt)}`
-												: "Status nunca verificado"}
-										</p>
+										<div className="flex items-center gap-1">
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												onClick={() => handleRefresh(item.id)}
+												disabled={refreshingId === item.id}
+												aria-label="Atualizar status da conexão"
+												title="Atualizar status"
+											>
+												<RiRefreshLine
+													className={cn(
+														"size-4 transition-transform duration-200",
+														refreshingId === item.id && "animate-spin",
+													)}
+													aria-hidden
+												/>
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												onClick={() => setRemoveId(item.id)}
+												disabled={refreshingId === item.id}
+												aria-label="Remover conexão"
+												title="Remover conexão"
+											>
+												<RiDeleteBinLine className="size-4" />
+											</Button>
+										</div>
 									</div>
-									<div className="flex items-center gap-1">
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											onClick={() => handleRefresh(item.id)}
-											disabled={refreshingId === item.id}
-											aria-label="Atualizar status da conexão"
-											title="Atualizar status"
-										>
-											<RiRefreshLine
-												className={cn(
-													"size-4 transition-transform duration-200",
-													refreshingId === item.id && "animate-spin",
-												)}
-												aria-hidden
-											/>
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											onClick={() => setRemoveId(item.id)}
-											disabled={refreshingId === item.id}
-											aria-label="Remover conexão"
-											title="Remover conexão"
-										>
-											<RiDeleteBinLine className="size-4" />
-										</Button>
+									<div className="border-t pt-3">
+										<DiscoveredAccountsList
+											accounts={item.accounts}
+											accountOptions={accountOptions}
+											cardOptions={cardOptions}
+											onLink={setLinkAccountId}
+											onToggle={handleToggleAccount}
+											togglingAccountId={togglingAccountId}
+										/>
 									</div>
-								</div>
-								<div className="border-t pt-3">
-									<DiscoveredAccountsList
-										accounts={item.accounts}
-										accountOptions={accountOptions}
-										cardOptions={cardOptions}
-										onLink={setLinkAccountId}
-										onToggle={handleToggleAccount}
-										togglingAccountId={togglingAccountId}
-									/>
-								</div>
-							</li>
-						);
-					})}
-				</ul>
+								</li>
+							);
+						})}
+					</ul>
+				</div>
 			)}
 
 			<AlertDialog
