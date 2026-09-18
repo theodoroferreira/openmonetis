@@ -10,6 +10,9 @@
 		"start": "next start",
 		"lint": "biome check .",
 		"lint:deadcode": "knip --reporter compact",
+		"test": "vitest run",
+		"//test": "Roda os testes unitarios das funcoes puras uma vez",
+		"test:watch": "vitest",
 		"lint:fix": "biome check --write .",
 		"env:setup": "node setup.mjs",
 		"db:generate": "drizzle-kit generate",
@@ -109,6 +112,7 @@
 		"knip": "^6.22.0",
 		"tailwindcss": "4.3.0",
 		"tsx": "4.22.4",
-		"typescript": "7.0.2"
+		"typescript": "7.0.2",
+		"vitest": "^3.2.7"
 	}
 }

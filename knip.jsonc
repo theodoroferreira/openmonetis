@@ -3,7 +3,8 @@
 	// Exclude shared UI primitives from dead code reporting while we focus the
 	// cleanup on feature and domain code first.
 	"ignore": [
-		"src/shared/components/ui/**"
+		"src/shared/components/ui/**",
+		"vitest.config.ts"
 	],
 	// Runtime asset referenced by string in the PDF viewer.
 	"ignoreFiles": [
