@@ -267,6 +267,20 @@
 			"when": 1789690224728,
 			"tag": "0038_youthful_leopardon",
 			"breakpoints": true
+		},
+		{
+			"idx": 39,
+			"version": "7",
+			"when": 1789764351955,
+			"tag": "0039_productive_naoko",
+			"breakpoints": true
+		},
+		{
+			"idx": 40,
+			"version": "7",
+			"when": 1789764416415,
+			"tag": "0040_sweet_whirlwind",
+			"breakpoints": true
 		}
 	]
 }

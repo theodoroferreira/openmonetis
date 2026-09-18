@@ -22,6 +22,10 @@ export interface InboxItem {
 	parsedCardId: string | null;
 	parsedInstallmentCount: number | null;
 	parsedCurrentInstallment: number | null;
+	parsedCurrency: string | null;
+	parsedOriginAmount: string | null;
+	parsedExchangeRate: string | null;
+	parsedRateSource: string | null;
 	status: string;
 	transactionId: string | null;
 	processedAt: Date | null;

@@ -352,15 +352,22 @@ function buildColumns({
 				const isIncomingTransfer =
 					isTransfer && Number(row.original.amount) > 0;
 				return (
-					<MoneyValues
-						amount={row.original.amount}
-						showPositiveSign={isReceita || isIncomingTransfer}
-						className={cn(
-							"whitespace-nowrap",
-							isReceita ? "text-success" : "text-foreground",
-							isTransfer && "text-info",
-						)}
-					/>
+					<span className="inline-flex items-baseline whitespace-nowrap">
+						<MoneyValues
+							amount={row.original.amount}
+							showPositiveSign={isReceita || isIncomingTransfer}
+							className={cn(
+								"whitespace-nowrap",
+								isReceita ? "text-success" : "text-foreground",
+								isTransfer && "text-info",
+							)}
+						/>
+						{row.original.originCurrency ? (
+							<span className="ml-1 text-[10px] text-muted-foreground">
+								{row.original.originCurrency}
+							</span>
+						) : null}
+					</span>
 				);
 			},
 		},

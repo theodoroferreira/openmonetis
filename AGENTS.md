@@ -12,9 +12,11 @@
 ## Critical Rules
 
 1. **Sempre filtrar por `userId`** em queries.
+   - **Exceção:** `cotacoes_cambio` não tem `user_id`. Cotação de câmbio é dado de referência público e imutável; particionar por usuário só multiplicaria chamadas idênticas ao BCB.
 2. **Usar `getAdminPayerId(userId)`** de `src/shared/lib/payers/get-admin-id.ts` ao inves de JOIN com `payers` para descobrir o admin.
 3. **Periods** usam formato `YYYY-MM` (ex: `"2025-11"`). Utils em `src/shared/utils/period/`.
 4. **Moeda**: R$ com 2 decimais. DB: `numeric(12, 2)`. Utils em `src/shared/utils/currency.ts`.
+   Lançamentos em moeda estrangeira gravam `valor` já convertido em BRL; a moeda de origem, o valor de origem, a taxa, a fonte e a data da cotação são metadados. Nenhuma agregação precisa conhecer moeda. Serviço em `src/shared/lib/exchange/`.
 5. **Revalidation**: usar `revalidateForEntity("entity")` de `src/shared/lib/actions/helpers.ts` apos mutations.
 6. **Versionamento e publicação**: registrar mudancas no `CHANGELOG.md` seguindo Keep a Changelog, também alterar o `package.json` e o badge de versão do `README.md`. Cada versão deve ter um parágrafo introdutório em linguagem humana logo abaixo do cabeçalho `## [x.y.z]`, antes das seções `### Adicionado/Alterado/Removido` — descrevendo em prosa o que a versão representa (ex: "Esta versão foca em polimento visual e reorganização interna..."). A `main` executa somente a CI; imagens Docker e GitHub Releases são publicadas exclusivamente por tags SemVer no formato `vX.Y.Z`. Antes de criar a tag, confirmar que a CI da `main` passou e que tag, `package.json`, `CHANGELOG.md` e badge do `README.md` usam a mesma versão. A tag deve apontar para o commit validado. Criar ou enviar uma tag dispara publicação externa (`X.Y.Z`, `X.Y`, `X` e `latest` no Docker Hub, seguida da GitHub Release), portanto agentes nunca devem criar ou fazer push de tags sem autorização explícita do usuário. Quando o usuário pedir **"commit e push"** em uma mudança que prepara uma nova versão, isso conta como autorização explícita para executar o fluxo completo: commitar, enviar a `main`, aguardar a CI da `main` passar, criar a tag SemVer correspondente à versão preparada e enviar essa tag. Se não houver versão preparada ou se houver divergência entre `package.json`, `CHANGELOG.md`, badge do `README.md` e tag pretendida, parar e pedir confirmação. Não voltar a publicar `latest` diretamente de pushes na `main`.
 7. **Comunicacao**: responder em portugues clara e direta com o time.
@@ -273,6 +275,7 @@ pnpm run dev
 pnpm run build
 pnpm run lint
 pnpm run lint:fix
+pnpm test                      # Vitest, restrito a funções puras
 pnpm exec next typegen
 pnpm exec tsc --noEmit
 pnpm run db:generate

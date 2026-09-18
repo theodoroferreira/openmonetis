@@ -31,6 +31,7 @@ import {
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Separator } from "@/shared/components/ui/separator";
+import { formatForeignCurrency } from "@/shared/lib/exchange/format";
 import { resolveLogoSrc } from "@/shared/lib/logo";
 import { getAvatarSrc } from "@/shared/lib/payers/utils";
 import { getCategoryColorFromName } from "@/shared/utils/category-colors";
@@ -39,6 +40,12 @@ import { getIconComponent, getPaymentMethodIcon } from "@/shared/utils/icons";
 import { AttachmentSection } from "../attachments/attachment-section";
 import { InstallmentTimeline } from "../shared/installment-timeline";
 import type { TransactionItem } from "../types";
+
+const RATE_SOURCE_LABELS: Record<string, string> = {
+	PTAX: "PTAX",
+	FRANKFURTER: "BCE",
+	MANUAL: "Manual",
+};
 
 interface TransactionDetailsDialogProps {
 	open: boolean;
@@ -109,6 +116,25 @@ export function TransactionDetailsDialog({
 									<p className="mt-1 text-2xl font-semibold">
 										{currencyFormatter.format(valorTotal)}
 									</p>
+									{transaction.originCurrency && transaction.exchangeRate ? (
+										<p className="text-xs text-muted-foreground">
+											{formatForeignCurrency(
+												transaction.originAmount ?? 0,
+												transaction.originCurrency,
+											)}
+											{" · "}
+											{transaction.exchangeRate.toLocaleString("pt-BR", {
+												minimumFractionDigits: 4,
+												maximumFractionDigits: 4,
+											})}
+											{transaction.rateSource === "PLUGGY"
+												? " · cotação do banco"
+												: ` · ${
+														RATE_SOURCE_LABELS[transaction.rateSource ?? ""] ??
+														transaction.rateSource
+													} · valor aproximado`}
+										</p>
+									) : null}
 								</div>
 								<Badge
 									variant={transaction.isSettled ? "secondary" : "info"}

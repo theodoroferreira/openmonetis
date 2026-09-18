@@ -394,6 +394,14 @@ export function InboxPage({
 	const defaultAmount = itemToProcess?.parsedAmount
 		? String(Math.abs(Number(itemToProcess.parsedAmount)))
 		: null;
+	const defaultCurrency = itemToProcess?.parsedCurrency ?? undefined;
+	const defaultOriginAmount = itemToProcess?.parsedOriginAmount
+		? Math.abs(Number(itemToProcess.parsedOriginAmount)).toFixed(2)
+		: undefined;
+	const defaultRate = itemToProcess?.parsedExchangeRate
+		? String(Number(itemToProcess.parsedExchangeRate))
+		: undefined;
+	const defaultRateSource = itemToProcess?.parsedRateSource ?? undefined;
 	const defaultPeriod = itemToProcess?.parsedPeriod ?? undefined;
 	const defaultCategoryId = itemToProcess?.parsedCategoryId ?? null;
 	const defaultTransactionType =
@@ -552,6 +560,10 @@ export function InboxPage({
 				defaultPurchaseDate={defaultPurchaseDate}
 				defaultName={defaultName}
 				defaultAmount={defaultAmount}
+				defaultCurrency={defaultCurrency}
+				defaultOriginAmount={defaultOriginAmount}
+				defaultRate={defaultRate}
+				defaultRateSource={defaultRateSource}
 				defaultAccountId={defaultAccountId}
 				defaultCardId={defaultCardId}
 				defaultPaymentMethod={defaultPaymentMethod}

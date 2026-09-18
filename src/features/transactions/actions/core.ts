@@ -22,6 +22,7 @@ import {
 } from "@/shared/lib/accounts/constants";
 import { revalidateForEntity } from "@/shared/lib/actions/helpers";
 import { db } from "@/shared/lib/db";
+import { RATE_SOURCES } from "@/shared/lib/exchange/constants";
 import { INVOICE_PAYMENT_STATUS } from "@/shared/lib/invoices";
 import { noteSchema, uuidSchema } from "@/shared/lib/schemas/common";
 import { addMonthsToDate, parseLocalDateString } from "@/shared/utils/date";
@@ -309,6 +310,31 @@ const baseFields = z.object({
 	amount: z.coerce
 		.number({ message: "Informe o valor da transação." })
 		.min(0, "Informe um valor maior ou igual a zero."),
+	originCurrency: z
+		.string()
+		.trim()
+		.length(3, "Selecione uma moeda válida.")
+		.optional()
+		.nullable(),
+	originAmount: z.coerce
+		.number()
+		.min(0, "Informe um valor de origem maior ou igual a zero.")
+		.optional()
+		.nullable(),
+	exchangeRate: z.coerce
+		.number()
+		.positive("Informe uma cotação maior que zero.")
+		.optional()
+		.nullable(),
+	rateSource: z.enum(RATE_SOURCES).optional().nullable(),
+	rateDate: z
+		.string()
+		.trim()
+		.refine((value) => !value || isValidDateInput(value), {
+			message: "Data de cotação inválida.",
+		})
+		.optional()
+		.nullable(),
 	condition: z.enum(TRANSACTION_CONDITIONS, {
 		message: "Selecione uma condição válida.",
 	}),
@@ -591,6 +617,58 @@ const splitAmount = (totalCents: number, parts: number) => {
 	);
 };
 
+/**
+ * Reparte `totalCents` proporcionalmente a `weights`, garantindo que as
+ * partes somem exatamente o total (metodo do maior resto).
+ *
+ * Usado para derivar o valor em moeda de origem de cada linha a partir do
+ * rateio ja feito em BRL, sem depender de como o BRL foi dividido.
+ */
+export const distributeProportionally = (
+	totalCents: number,
+	weights: number[],
+): number[] => {
+	const weightSum = weights.reduce((acc, weight) => acc + weight, 0);
+
+	if (weightSum === 0) {
+		return weights.map(() => 0);
+	}
+
+	const exact = weights.map((weight) => (totalCents * weight) / weightSum);
+	const result = exact.map((value) => Math.floor(value));
+	let remainder = totalCents - result.reduce((acc, value) => acc + value, 0);
+
+	const byLargestFraction = exact
+		.map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+		.sort((a, b) => b.fraction - a.fraction);
+
+	for (const { index } of byLargestFraction) {
+		if (remainder <= 0) break;
+		result[index] += 1;
+		remainder -= 1;
+	}
+
+	return result;
+};
+
+/**
+ * Deriva o valor de origem (string decimal, sinalizado) de cada linha de uma
+ * dupla/divisao ja existente a partir do total em moeda estrangeira, ratado
+ * proporcionalmente ao BRL de cada linha (`weightsCents`).
+ *
+ * Usado em updateTransactionSplitPairAction: ao editar so a linha principal,
+ * a(s) parceira(s) nao tem seu BRL alterado aqui, mas precisam de um valor de
+ * origem coerente com o cambio compartilhado da dupla.
+ */
+export const buildOriginAmountsForRows = (
+	originTotalCents: number,
+	weightsCents: number[],
+	amountSign: 1 | -1,
+): string[] =>
+	distributeProportionally(originTotalCents, weightsCents).map((cents) =>
+		centsToDecimalString(cents * amountSign),
+	);
+
 type Share = {
 	payerId: string | null;
 	amountCents: number;
@@ -688,6 +766,13 @@ type BuildTransactionRecordsParams = {
 	amountSign: 1 | -1;
 	shouldNullifySettled: boolean;
 	seriesId: string | null;
+	originShareCents: number[] | null;
+	exchange: {
+		currency: string;
+		rate: number;
+		source: string;
+		rateDate: string;
+	} | null;
 };
 
 export type TransactionInsert = typeof transactions.$inferInsert;
@@ -703,6 +788,8 @@ export const buildTransactionRecords = ({
 	amountSign,
 	shouldNullifySettled,
 	seriesId,
+	originShareCents,
+	exchange,
 }: BuildTransactionRecordsParams): TransactionInsert[] => {
 	const records: TransactionInsert[] = [];
 	const isSplit = (data.isSplit ?? false) && shares.length > 1;
@@ -722,7 +809,16 @@ export const buildTransactionRecords = ({
 		isDivided: data.isSplit ?? false,
 		userId,
 		seriesId,
+		originCurrency: exchange?.currency ?? null,
+		exchangeRate: exchange ? exchange.rate.toFixed(8) : null,
+		rateSource: exchange?.source ?? null,
+		rateDate: exchange?.rateDate ?? null,
 	};
+
+	const originAmountFor = (cents: number | undefined) =>
+		exchange && cents !== undefined
+			? centsToDecimalString(cents * amountSign)
+			: null;
 
 	const cycleSplitGroupId = () => (isSplit ? randomUUID() : null);
 
@@ -743,6 +839,9 @@ export const buildTransactionRecords = ({
 		const amountsByShare = shares.map((share) =>
 			splitAmount(share.amountCents, installmentTotal),
 		);
+		const originAmountsByShare = originShareCents
+			? originShareCents.map((cents) => splitAmount(cents, installmentTotal))
+			: null;
 
 		for (
 			let index = 0;
@@ -763,6 +862,9 @@ export const buildTransactionRecords = ({
 				records.push({
 					...basePayload,
 					amount: centsToDecimalString(amountCents * amountSign),
+					originAmount: originAmountFor(
+						originAmountsByShare?.[shareIndex]?.[currentInstallment - 1],
+					),
 					payerId: share.payerId,
 					purchaseDate,
 					period: installmentPeriod,
@@ -794,11 +896,12 @@ export const buildTransactionRecords = ({
 				: null;
 			const splitGroupId = cycleSplitGroupId();
 
-			shares.forEach((share) => {
+			shares.forEach((share, shareIndex) => {
 				const settled = resolveSettledValue(index);
 				records.push({
 					...basePayload,
 					amount: centsToDecimalString(share.amountCents * amountSign),
+					originAmount: originAmountFor(originShareCents?.[shareIndex]),
 					payerId: share.payerId,
 					purchaseDate: recurrencePurchaseDate,
 					period: recurrencePeriod,
@@ -819,11 +922,12 @@ export const buildTransactionRecords = ({
 
 	const splitGroupId = cycleSplitGroupId();
 
-	shares.forEach((share) => {
+	shares.forEach((share, shareIndex) => {
 		const settled = resolveSettledValue(0);
 		records.push({
 			...basePayload,
 			amount: centsToDecimalString(share.amountCents * amountSign),
+			originAmount: originAmountFor(originShareCents?.[shareIndex]),
 			payerId: share.payerId,
 			purchaseDate,
 			period,

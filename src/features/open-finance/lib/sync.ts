@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { inboxItems, pluggyAccounts, pluggyItems } from "@/db/schema";
 import { detectInvoicePaymentFlag } from "@/features/open-finance/lib/invoice-payment";
 import { mapPluggyAccountToRow } from "@/features/open-finance/lib/map-account";
+import type { CurrencyResolution } from "@/features/open-finance/lib/map-transaction";
 import { mapPluggyTransactionToInboxItem } from "@/features/open-finance/lib/map-transaction";
 import {
 	fetchSuggestedCategoriesForPage,
@@ -11,6 +12,7 @@ import {
 } from "@/features/open-finance/lib/suggest-category";
 import { revalidateForEntity } from "@/shared/lib/actions/helpers";
 import { db } from "@/shared/lib/db";
+import { getExchangeRate } from "@/shared/lib/exchange/get-rate";
 import {
 	fetchPluggyItem,
 	listAccounts,
@@ -18,6 +20,7 @@ import {
 	parsePluggyDate,
 } from "@/shared/lib/pluggy/client";
 import type { PluggyAccount } from "@/shared/lib/pluggy/schemas";
+import { formatDecimalForDbRequired } from "@/shared/utils/currency";
 
 /** Sem cursor, a primeira carga de transacoes busca so os ultimos N dias. */
 const INITIAL_TRANSACTION_SYNC_LOOKBACK_DAYS = 90;
@@ -112,6 +115,74 @@ export async function syncPluggyItemsAndAccounts(
 	}
 }
 
+type InboxExchange = {
+	currency: string | null;
+	originAmount: string | null;
+	rate: string | null;
+	source: string | null;
+	/** Substitui `parsedAmount` quando a conversao foi feita aqui. */
+	amount: string | null;
+};
+
+const NO_EXCHANGE: InboxExchange = {
+	currency: null,
+	originAmount: null,
+	rate: null,
+	source: null,
+	amount: null,
+};
+
+/**
+ * Traduz a classificacao de moeda em colunas da inbox, buscando cotacao
+ * publica so quando o Pluggy nao converteu.
+ *
+ * Quando nenhuma fonte responde, o item fica com moeda e valor de origem mas
+ * sem taxa: `pre_lancamentos` aceita isso, `lancamentos` nao. O usuario
+ * informa a taxa ao aprovar, o que e preferivel a gravar um valor errado.
+ */
+async function resolveInboxExchange(
+	resolution: CurrencyResolution,
+	parsedDate: Date,
+): Promise<InboxExchange> {
+	if (resolution.kind === "base") {
+		return NO_EXCHANGE;
+	}
+
+	const isoDate = parsedDate.toISOString().slice(0, 10);
+
+	if (resolution.kind === "converted") {
+		return {
+			currency: resolution.currency,
+			originAmount: formatDecimalForDbRequired(resolution.originAmount),
+			rate: resolution.rate.toFixed(8),
+			source: "PLUGGY",
+			amount: formatDecimalForDbRequired(
+				resolution.originAmount * resolution.rate,
+			),
+		};
+	}
+
+	const rate = await getExchangeRate(resolution.currency, isoDate);
+
+	if (!rate) {
+		return {
+			currency: resolution.currency,
+			originAmount: formatDecimalForDbRequired(resolution.originAmount),
+			rate: null,
+			source: null,
+			amount: null,
+		};
+	}
+
+	return {
+		currency: resolution.currency,
+		originAmount: formatDecimalForDbRequired(resolution.originAmount),
+		rate: rate.taxa.toFixed(8),
+		source: rate.fonte,
+		amount: formatDecimalForDbRequired(resolution.originAmount * rate.taxa),
+	};
+}
+
 /**
  * Sincroniza transacoes de uma unica conta vinculada, paginando pelo cursor
  * do Pluggy ate `next` vir nulo. `last_transaction_cursor` so avanca depois
@@ -123,6 +194,7 @@ async function syncAccountTransactions(
 		id: string;
 		pluggyAccountId: string;
 		type: string;
+		currency: string | null;
 		lastTransactionCursor: string | null;
 	},
 	userId: string,
@@ -151,39 +223,51 @@ async function syncAccountTransactions(
 				page.results,
 			);
 
-			const rows = page.results.map((transaction) => {
-				const mapped = mapPluggyTransactionToInboxItem(transaction, {
-					accountType: account.type as PluggyAccount["type"],
-					connectorName,
-				});
+			const rows = await Promise.all(
+				page.results.map(async (transaction) => {
+					const mapped = mapPluggyTransactionToInboxItem(transaction, {
+						accountType: account.type as PluggyAccount["type"],
+						connectorName,
+						accountCurrency: account.currency,
+					});
 
-				return {
-					userId,
-					sourceApp: mapped.sourceApp,
-					sourceAppName: mapped.sourceAppName,
-					originalText: mapped.originalText,
-					notificationTimestamp: mapped.notificationTimestamp,
-					pluggyTransactionId: mapped.pluggyTransactionId,
-					pluggyAccountId: account.id,
-					pluggyStatus: mapped.pluggyStatus,
-					pluggyFlag: detectInvoicePaymentFlag(
-						transaction,
-						account.type as PluggyAccount["type"],
-					),
-					parsedName: mapped.parsedName,
-					parsedAmount: mapped.parsedAmount,
-					parsedTransactionType: mapped.parsedTransactionType,
-					parsedDate: mapped.parsedDate,
-					parsedPeriod: mapped.parsedPeriod,
-					parsedPaymentMethod: mapped.parsedPaymentMethod,
-					parsedCategoryId: resolveSuggestedCategoryId(
-						transaction,
-						suggestions,
-					),
-					parsedInstallmentCount: mapped.parsedInstallmentCount,
-					parsedCurrentInstallment: mapped.parsedCurrentInstallment,
-				};
-			});
+					const exchange = await resolveInboxExchange(
+						mapped.currency,
+						mapped.parsedDate,
+					);
+
+					return {
+						userId,
+						sourceApp: mapped.sourceApp,
+						sourceAppName: mapped.sourceAppName,
+						originalText: mapped.originalText,
+						notificationTimestamp: mapped.notificationTimestamp,
+						pluggyTransactionId: mapped.pluggyTransactionId,
+						pluggyAccountId: account.id,
+						pluggyStatus: mapped.pluggyStatus,
+						pluggyFlag: detectInvoicePaymentFlag(
+							transaction,
+							account.type as PluggyAccount["type"],
+						),
+						parsedName: mapped.parsedName,
+						parsedTransactionType: mapped.parsedTransactionType,
+						parsedDate: mapped.parsedDate,
+						parsedPeriod: mapped.parsedPeriod,
+						parsedPaymentMethod: mapped.parsedPaymentMethod,
+						parsedCategoryId: resolveSuggestedCategoryId(
+							transaction,
+							suggestions,
+						),
+						parsedInstallmentCount: mapped.parsedInstallmentCount,
+						parsedCurrentInstallment: mapped.parsedCurrentInstallment,
+						parsedCurrency: exchange.currency,
+						parsedOriginAmount: exchange.originAmount,
+						parsedExchangeRate: exchange.rate,
+						parsedRateSource: exchange.source,
+						parsedAmount: exchange.amount ?? mapped.parsedAmount,
+					};
+				}),
+			);
 
 			// Conflito so atualiza pre-lancamentos ainda `pending`; itens ja
 			// processed/discarded ficam intocados (setWhere). O par
@@ -203,6 +287,10 @@ async function syncAccountTransactions(
 						parsedDate: sql`excluded.parsed_date`,
 						parsedName: sql`excluded.parsed_name`,
 						pluggyStatus: sql`excluded.pluggy_status`,
+						parsedCurrency: sql`excluded.parsed_moeda_origem`,
+						parsedOriginAmount: sql`excluded.parsed_valor_origem`,
+						parsedExchangeRate: sql`excluded.parsed_taxa_cambio`,
+						parsedRateSource: sql`excluded.parsed_cotacao_fonte`,
 						updatedAt: new Date(),
 					},
 				})

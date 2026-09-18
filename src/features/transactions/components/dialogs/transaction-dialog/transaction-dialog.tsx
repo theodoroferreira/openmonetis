@@ -1,9 +1,17 @@
 "use client";
 import { RiArrowDropDownLine } from "@remixicon/react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 import { toast } from "sonner";
 import {
 	createTransactionAction,
+	fetchExchangeRateAction,
 	updateTransactionAction,
 } from "@/features/transactions/actions";
 import {
@@ -35,6 +43,8 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Label } from "@/shared/components/ui/label";
 import { useControlledState } from "@/shared/hooks/use-controlled-state";
+import type { RateSource } from "@/shared/lib/exchange/constants";
+import type { ExchangeRate } from "@/shared/lib/exchange/get-rate";
 import { AttachmentFilePicker } from "../../attachments/attachment-file-picker";
 import { AttachmentSection } from "../../attachments/attachment-section";
 import { BasicFieldsSection } from "./basic-fields-section";
@@ -49,6 +59,73 @@ import type {
 	TransactionDialogProps,
 } from "./transaction-dialog-types";
 import { TransactionSummaryCard } from "./transaction-summary-card";
+
+/** Aceita "5,0918" e "5.0918". "" vira 0. */
+function parseDecimalInput(value: string): number {
+	return Number(value.trim().replace(",", "."));
+}
+
+/** Cotacao positiva e finita, ou null. */
+function parseExchangeRate(value: string): number | null {
+	const rate = parseDecimalInput(value);
+	return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+/** Taxa derivada (total / origem) com a precisao da coluna: numeric(18,8). */
+function formatDerivedRate(rate: number): string {
+	return String(Number(rate.toFixed(8)));
+}
+
+/**
+ * Troca o total em reais repassando as dependencias do campo `amount`
+ * (hoje: redistribuicao da divisao entre pessoas).
+ */
+function withAmount(state: FormState, amount: string): FormState {
+	if (amount === state.amount) {
+		return state;
+	}
+	return {
+		...state,
+		amount,
+		...applyFieldDependencies("amount", amount, state),
+	};
+}
+
+/** Total em reais = origem x cotacao. Sem cotacao valida, nao mexe no total. */
+function withAmountFromRate(state: FormState): FormState {
+	const rate = parseExchangeRate(state.exchangeRate);
+	if (rate === null) {
+		return state;
+	}
+	if (!state.originAmount.trim()) {
+		return withAmount(state, "");
+	}
+	const origin = Number(state.originAmount);
+	if (!Number.isFinite(origin)) {
+		return state;
+	}
+	return withAmount(state, (origin * rate).toFixed(2));
+}
+
+/** Aplica o resultado da busca automatica; `null` = nenhuma fonte respondeu. */
+function withFetchedRate(
+	state: FormState,
+	rate: ExchangeRate | null,
+): FormState {
+	if (!rate) {
+		// Sem taxa o total tambem nao vale mais: o usuario informa um ou outro.
+		return withAmount(
+			{ ...state, exchangeRate: "", rateSource: "", rateDate: "" },
+			"",
+		);
+	}
+	return withAmountFromRate({
+		...state,
+		exchangeRate: String(rate.taxa),
+		rateSource: rate.fonte,
+		rateDate: rate.dataCotacao,
+	});
+}
 
 export function TransactionDialog({
 	mode,
@@ -70,6 +147,10 @@ export function TransactionDialog({
 	defaultPurchaseDate,
 	defaultName,
 	defaultAmount,
+	defaultCurrency,
+	defaultOriginAmount,
+	defaultRate,
+	defaultRateSource,
 	defaultCategoryId,
 	defaultCondition,
 	defaultInstallmentCount,
@@ -98,6 +179,10 @@ export function TransactionDialog({
 			defaultPurchaseDate,
 			defaultName,
 			defaultAmount,
+			defaultCurrency,
+			defaultOriginAmount,
+			defaultRate,
+			defaultRateSource,
 			defaultTransactionType,
 			defaultCategoryId,
 			defaultCondition,
@@ -114,6 +199,30 @@ export function TransactionDialog({
 	const [extrasOpen, setExtrasOpen] = useState(false);
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const { showTransactionSummary } = useAppPreferences();
+	const [isLoadingRate, setIsLoadingRate] = useState(false);
+	// Id da ultima busca de cotacao: respostas de buscas anteriores sao
+	// descartadas (troca rapida de moeda/data, reabertura do dialogo).
+	const rateRequestIdRef = useRef(0);
+
+	const cancelExchangeRateRequest = useCallback(() => {
+		rateRequestIdRef.current += 1;
+		setIsLoadingRate(false);
+	}, []);
+
+	const requestExchangeRate = useCallback((currency: string, date: string) => {
+		rateRequestIdRef.current += 1;
+		const requestId = rateRequestIdRef.current;
+		setIsLoadingRate(true);
+
+		fetchExchangeRateAction({ currency, date })
+			.then((result) => (result.success ? (result.data ?? null) : null))
+			.catch(() => null)
+			.then((rate) => {
+				if (requestId !== rateRequestIdRef.current) return;
+				setIsLoadingRate(false);
+				setFormState((prev) => withFetchedRate(prev, rate));
+			});
+	}, []);
 
 	useEffect(() => {
 		if (dialogOpen) {
@@ -128,6 +237,10 @@ export function TransactionDialog({
 					defaultPurchaseDate,
 					defaultName,
 					defaultAmount,
+					defaultCurrency,
+					defaultOriginAmount,
+					defaultRate,
+					defaultRateSource,
 					defaultTransactionType,
 					defaultCategoryId,
 					defaultCondition,
@@ -155,6 +268,17 @@ export function TransactionDialog({
 			}
 
 			setFormState(initial);
+			cancelExchangeRateRequest();
+			// Moeda estrangeira sem taxa (ex.: item da inbox que o banco nao
+			// converteu): busca ao abrir. Taxa ja presente — lancamento salvo ou
+			// cotacao do Pluggy — e mantida.
+			if (
+				initial.originCurrency !== "BRL" &&
+				!initial.exchangeRate &&
+				initial.purchaseDate
+			) {
+				requestExchangeRate(initial.originCurrency, initial.purchaseDate);
+			}
 			setErrorMessage(null);
 			setPendingFiles([]);
 			setPendingDetachIds([]);
@@ -172,6 +296,10 @@ export function TransactionDialog({
 		defaultPurchaseDate,
 		defaultName,
 		defaultAmount,
+		defaultCurrency,
+		defaultOriginAmount,
+		defaultRate,
+		defaultRateSource,
 		defaultTransactionType,
 		defaultCategoryId,
 		defaultCondition,
@@ -180,6 +308,8 @@ export function TransactionDialog({
 		isImporting,
 		cardOptions,
 		mode,
+		cancelExchangeRateRequest,
+		requestExchangeRate,
 	]);
 
 	const categoryGroups = useMemo(() => {
@@ -225,6 +355,132 @@ export function TransactionDialog({
 				...dependencies,
 			};
 		});
+	}
+
+	/**
+	 * Campos ligados ao cambio. Os recalculos ficam aqui, nos eventos, e nao
+	 * num efeito sobre `originAmount`/`exchangeRate`: assim editar o total a
+	 * mao nunca e desfeito por um recalculo automatico.
+	 */
+	function handleExchangeAwareFieldChange<Key extends keyof FormState>(
+		key: Key,
+		value: FormState[Key],
+	) {
+		const isForeign = formState.originCurrency !== "BRL";
+
+		if (key === "originCurrency") {
+			const currency = value as string;
+			if (currency === formState.originCurrency) return;
+
+			if (currency === "BRL") {
+				// Os cinco campos saem em bloco (CHECK do banco). O numero digitado
+				// no campo "Valor" continua o mesmo, agora em reais.
+				cancelExchangeRateRequest();
+				setFormState((prev) =>
+					withAmount(
+						{
+							...prev,
+							originCurrency: "BRL",
+							originAmount: "",
+							exchangeRate: "",
+							rateSource: "",
+							rateDate: "",
+						},
+						prev.originAmount,
+					),
+				);
+				return;
+			}
+
+			// O numero digitado no campo "Valor" passa a ser o valor de origem.
+			setFormState((prev) =>
+				withAmount(
+					{
+						...prev,
+						originCurrency: currency,
+						originAmount:
+							prev.originCurrency === "BRL" ? prev.amount : prev.originAmount,
+						exchangeRate: "",
+						rateSource: "",
+						rateDate: "",
+					},
+					"",
+				),
+			);
+			if (formState.purchaseDate) {
+				requestExchangeRate(currency, formState.purchaseDate);
+			} else {
+				cancelExchangeRateRequest();
+			}
+			return;
+		}
+
+		if (key === "purchaseDate") {
+			handleFieldChange(key, value);
+			const date = value as string;
+			// Cotacao do Pluggy e a que o banco cobrou: mudar a data nao a troca.
+			if (isForeign && date && formState.rateSource !== "PLUGGY") {
+				requestExchangeRate(formState.originCurrency, date);
+			}
+			return;
+		}
+
+		if (!isForeign) {
+			handleFieldChange(key, value);
+			return;
+		}
+
+		if (key === "originAmount") {
+			const originAmount = value as string;
+			setFormState((prev) => {
+				const next = { ...prev, originAmount };
+				if (parseExchangeRate(prev.exchangeRate) !== null) {
+					return withAmountFromRate(next);
+				}
+				// Sem taxa mas com total informado: a taxa sai de total / origem.
+				const origin = Number(originAmount);
+				const total = Number(prev.amount);
+				if (origin > 0 && total > 0) {
+					return {
+						...next,
+						exchangeRate: formatDerivedRate(total / origin),
+						rateSource: "MANUAL",
+					};
+				}
+				return next;
+			});
+			return;
+		}
+
+		if (key === "exchangeRate") {
+			const exchangeRate = value as string;
+			setFormState((prev) =>
+				withAmountFromRate({ ...prev, exchangeRate, rateSource: "MANUAL" }),
+			);
+			return;
+		}
+
+		if (key === "amount") {
+			// Em moeda estrangeira `amount` so e escrito pelo campo "Total em
+			// reais": a cotacao passa a ser total / origem.
+			const total = value as string;
+			setFormState((prev) => {
+				const next = withAmount(prev, total);
+				const origin = Number(prev.originAmount);
+				const totalValue = Number(total);
+				return {
+					...next,
+					exchangeRate:
+						origin > 0 && totalValue > 0
+							? formatDerivedRate(totalValue / origin)
+							: "",
+					rateSource: "MANUAL",
+				};
+			});
+			return;
+		}
+
+		handleFieldChange(key, value);
 	}
 
 	function handleExtrasOpenChange(nextOpen: boolean) {
@@ -275,6 +531,30 @@ export function TransactionDialog({
 			toast.error(message);
 			return;
 		}
+
+		const isForeign = formState.originCurrency !== "BRL";
+		const rateValue = parseExchangeRate(formState.exchangeRate);
+
+		if (isForeign && rateValue === null) {
+			const message =
+				"Informe a cotação da moeda — não foi possível obtê-la automaticamente.";
+			setErrorMessage(message);
+			toast.error(message);
+			return;
+		}
+
+		// Os cinco campos vao juntos ou todos nulos (CHECK do banco).
+		const exchangeFields = {
+			originCurrency: isForeign ? formState.originCurrency : null,
+			originAmount: isForeign
+				? Math.abs(Number(formState.originAmount) || 0)
+				: null,
+			exchangeRate: isForeign ? rateValue : null,
+			rateSource: isForeign
+				? ((formState.rateSource || "MANUAL") as RateSource)
+				: null,
+			rateDate: isForeign ? formState.rateDate || formState.purchaseDate : null,
+		};
 
 		const sanitizedAmount = Math.abs(amountValue);
 		const normalizedSplitShares = formState.isSplit
@@ -344,6 +624,7 @@ export function TransactionDialog({
 			transactionType:
 				formState.transactionType as CreateTransactionInput["transactionType"],
 			amount: sanitizedAmount,
+			...exchangeFields,
 			condition: formState.condition as CreateTransactionInput["condition"],
 			paymentMethod:
 				formState.paymentMethod as CreateTransactionInput["paymentMethod"],
@@ -501,6 +782,7 @@ export function TransactionDialog({
 						mode === "update" && formState.paymentMethod === "Boleto"
 							? formState.boletoPaymentDate || null
 							: null,
+					...exchangeFields,
 					pendingDetachIds,
 					pendingUploadFiles,
 				});
@@ -589,6 +871,10 @@ export function TransactionDialog({
 	const isUpdateMode = mode === "update";
 	const disablePaymentMethod = Boolean(lockPaymentMethod && mode === "create");
 	const disableCardSelect = Boolean(lockCardSelection && mode === "create");
+	// Moeda estrangeira: nada de salvar durante a busca nem sem cotacao valida.
+	const isSaveBlockedByRate =
+		formState.originCurrency !== "BRL" &&
+		(isLoadingRate || parseExchangeRate(formState.exchangeRate) === null);
 
 	return (
 		<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -612,8 +898,9 @@ export function TransactionDialog({
 						<div className="space-y-3">
 							<BasicFieldsSection
 								formState={formState}
-								onFieldChange={handleFieldChange}
+								onFieldChange={handleExchangeAwareFieldChange}
 								estabelecimentos={estabelecimentos}
+								isLoadingRate={isLoadingRate}
 							/>
 
 							<CategorySection
@@ -774,7 +1061,7 @@ export function TransactionDialog({
 						>
 							Cancelar
 						</Button>
-						<Button type="submit" disabled={isPending}>
+						<Button type="submit" disabled={isPending || isSaveBlockedByRate}>
 							{isPending ? "Salvando..." : submitLabel}
 						</Button>
 					</DialogFooter>

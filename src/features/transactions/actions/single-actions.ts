@@ -26,6 +26,7 @@ import { copyAttachmentsForImport } from "../lib/attachment-copy";
 import { detectInstallmentFromName } from "../lib/installment-detection";
 import { cleanupAttachmentsAfterTransactionDelete } from "./attachments";
 import {
+	buildOriginAmountsForRows,
 	buildShares,
 	buildTransactionRecords,
 	type ConvertToInstallmentInput,
@@ -37,6 +38,7 @@ import {
 	createSchema,
 	type DeleteInput,
 	deleteSchema,
+	distributeProportionally,
 	formatPaidInvoicePeriods,
 	getPaidInvoicePeriods,
 	isInitialBalanceTransaction,
@@ -99,6 +101,31 @@ export async function createTransactionAction(
 				: undefined,
 		});
 
+		// `amount` ja chega em BRL do dialogo; `originAmount` e o valor digitado
+		// na moeda estrangeira. Os cinco campos andam juntos ou nao existem.
+		const hasExchange = Boolean(
+			data.originCurrency &&
+				data.exchangeRate &&
+				data.rateSource &&
+				data.rateDate,
+		);
+
+		const originShareCents = hasExchange
+			? distributeProportionally(
+					Math.round(Math.abs(data.originAmount ?? 0) * 100),
+					shares.map((share) => share.amountCents),
+				)
+			: null;
+
+		const exchange = hasExchange
+			? {
+					currency: data.originCurrency as string,
+					rate: data.exchangeRate as number,
+					source: data.rateSource as string,
+					rateDate: data.rateDate as string,
+				}
+			: null;
+
 		const isSeriesLancamento =
 			data.condition === "Parcelado" || data.condition === "Recorrente";
 		const seriesId = isSeriesLancamento ? randomUUID() : null;
@@ -114,6 +141,8 @@ export async function createTransactionAction(
 			shouldNullifySettled,
 			boletoPaymentDate,
 			seriesId,
+			originShareCents,
+			exchange,
 		});
 
 		if (!records.length) {
@@ -275,6 +304,15 @@ export async function updateTransactionAction(
 		const amountSign: 1 | -1 = data.transactionType === "Despesa" ? -1 : 1;
 		const amountCents = Math.round(Math.abs(data.amount) * 100);
 		const normalizedAmount = centsToDecimalString(amountCents * amountSign);
+		const hasExchange = Boolean(
+			data.originCurrency &&
+				data.exchangeRate &&
+				data.rateSource &&
+				data.rateDate,
+		);
+		const originAmountCents = hasExchange
+			? Math.round(Math.abs(data.originAmount ?? 0) * 100)
+			: 0;
 		const normalizedSettled =
 			data.paymentMethod === "Cartão de crédito"
 				? null
@@ -329,6 +367,15 @@ export async function updateTransactionAction(
 				purchaseDate: parseLocalDateString(data.purchaseDate),
 				transactionType: data.transactionType,
 				amount: normalizedAmount,
+				originCurrency: hasExchange ? (data.originCurrency as string) : null,
+				originAmount: hasExchange
+					? centsToDecimalString(originAmountCents * amountSign)
+					: null,
+				exchangeRate: hasExchange
+					? (data.exchangeRate as number).toFixed(8)
+					: null,
+				rateSource: hasExchange ? (data.rateSource as string) : null,
+				rateDate: hasExchange ? (data.rateDate as string) : null,
 				condition: data.condition,
 				paymentMethod: data.paymentMethod,
 				payerId: data.payerId ?? null,
@@ -535,6 +582,32 @@ export async function convertTransactionToInstallmentAction(
 				: existing.name;
 		const amountSign: 1 | -1 = existing.transactionType === "Despesa" ? -1 : 1;
 		const totalCents = Math.round(Math.abs(Number(existing.amount)) * 100);
+		const shares = [{ payerId: existing.payerId, amountCents: totalCents }];
+
+		// Lancamento em moeda estrangeira: preserva cambio da linha original e
+		// recalcula o valor de origem (buildTransactionRecords faz o rateio
+		// entre as parcelas a partir do total abaixo).
+		const existingHasExchange = Boolean(
+			existing.originCurrency &&
+				existing.exchangeRate &&
+				existing.rateSource &&
+				existing.rateDate,
+		);
+		const exchange = existingHasExchange
+			? {
+					currency: existing.originCurrency as string,
+					rate: Number(existing.exchangeRate),
+					source: existing.rateSource as string,
+					rateDate: existing.rateDate as string,
+				}
+			: null;
+		const originShareCents = existingHasExchange
+			? distributeProportionally(
+					Math.round(Math.abs(Number(existing.originAmount)) * 100),
+					shares.map((share) => share.amountCents),
+				)
+			: null;
+
 		const seriesId = randomUUID();
 		const records = buildTransactionRecords({
 			data: {
@@ -561,10 +634,12 @@ export async function convertTransactionToInstallmentAction(
 			purchaseDate: existing.purchaseDate,
 			dueDate: existing.dueDate,
 			boletoPaymentDate: null,
-			shares: [{ payerId: existing.payerId, amountCents: totalCents }],
+			shares,
 			amountSign,
 			shouldNullifySettled: true,
 			seriesId,
+			originShareCents,
+			exchange,
 		}).map((record) => ({
 			...record,
 			importBatchId: existing.importBatchId,
@@ -617,6 +692,11 @@ export async function convertTransactionToInstallmentAction(
 					condition: currentRow.condition,
 					name: currentRow.name,
 					amount: currentRow.amount,
+					originCurrency: currentRow.originCurrency,
+					originAmount: currentRow.originAmount,
+					exchangeRate: currentRow.exchangeRate,
+					rateSource: currentRow.rateSource,
+					rateDate: currentRow.rateDate,
 					installmentCount: currentRow.installmentCount,
 					currentInstallment: currentRow.currentInstallment,
 					recurrenceCount: null,
@@ -699,6 +779,32 @@ export async function convertTransactionToRecurringAction(
 
 		const amountSign: 1 | -1 = existing.transactionType === "Despesa" ? -1 : 1;
 		const totalCents = Math.round(Math.abs(Number(existing.amount)) * 100);
+		const shares = [{ payerId: existing.payerId, amountCents: totalCents }];
+
+		// Lancamento em moeda estrangeira: preserva cambio da linha original e
+		// recalcula o valor de origem (buildTransactionRecords faz o rateio
+		// entre as ocorrencias a partir do total abaixo).
+		const existingHasExchange = Boolean(
+			existing.originCurrency &&
+				existing.exchangeRate &&
+				existing.rateSource &&
+				existing.rateDate,
+		);
+		const exchange = existingHasExchange
+			? {
+					currency: existing.originCurrency as string,
+					rate: Number(existing.exchangeRate),
+					source: existing.rateSource as string,
+					rateDate: existing.rateDate as string,
+				}
+			: null;
+		const originShareCents = existingHasExchange
+			? distributeProportionally(
+					Math.round(Math.abs(Number(existing.originAmount)) * 100),
+					shares.map((share) => share.amountCents),
+				)
+			: null;
+
 		const seriesId = randomUUID();
 		const isCreditCard = existing.paymentMethod === "Cartão de crédito";
 		const records = buildTransactionRecords({
@@ -735,10 +841,12 @@ export async function convertTransactionToRecurringAction(
 			purchaseDate: existing.purchaseDate,
 			dueDate: existing.dueDate,
 			boletoPaymentDate: existing.boletoPaymentDate,
-			shares: [{ payerId: existing.payerId, amountCents: totalCents }],
+			shares,
 			amountSign,
 			shouldNullifySettled: isCreditCard,
 			seriesId,
+			originShareCents,
+			exchange,
 		}).map((record) => ({
 			...record,
 			importBatchId: existing.importBatchId,
@@ -793,6 +901,11 @@ export async function convertTransactionToRecurringAction(
 					condition: currentRow.condition,
 					name: currentRow.name,
 					amount: currentRow.amount,
+					originCurrency: currentRow.originCurrency,
+					originAmount: currentRow.originAmount,
+					exchangeRate: currentRow.exchangeRate,
+					rateSource: currentRow.rateSource,
+					rateDate: currentRow.rateDate,
 					recurrenceCount: currentRow.recurrenceCount,
 					installmentCount: null,
 					currentInstallment: null,
@@ -921,12 +1034,63 @@ export async function updateTransactionSplitPairAction(
 			boletoPaymentDate: boletoPaymentDateValue,
 		};
 
+		// Os cinco campos de cambio sao compartilhados pela dupla (mesma compra
+		// original), mas o valor de origem e rateado por linha proporcional ao
+		// BRL de cada uma — a linha principal usa o valor novo, a(s) parceira(s)
+		// mantem o BRL atual (nao editado aqui).
+		const hasExchange = Boolean(
+			data.originCurrency &&
+				data.exchangeRate &&
+				data.rateSource &&
+				data.rateDate,
+		);
+		const siblingRows = existing.splitGroupId
+			? await db.query.transactions.findMany({
+					columns: { id: true, amount: true },
+					where: and(
+						eq(transactions.splitGroupId, existing.splitGroupId),
+						eq(transactions.userId, user.id),
+						ne(transactions.id, data.id),
+					),
+				})
+			: [];
+		const originWeightsCents = [
+			amountCents,
+			...siblingRows.map((row) =>
+				Math.round(Math.abs(Number(row.amount)) * 100),
+			),
+		];
+		const originAmountsByRow = hasExchange
+			? buildOriginAmountsForRows(
+					Math.round(Math.abs(data.originAmount ?? 0) * 100),
+					originWeightsCents,
+					amountSign,
+				)
+			: null;
+		const exchangeFields = hasExchange
+			? {
+					originCurrency: data.originCurrency as string,
+					exchangeRate: (data.exchangeRate as number).toFixed(8),
+					rateSource: data.rateSource as string,
+					rateDate: data.rateDate as string,
+				}
+			: {
+					originCurrency: null,
+					exchangeRate: null,
+					rateSource: null,
+					rateDate: null,
+				};
+		const originAmountForShare = (shareIndex: number) =>
+			originAmountsByRow?.[shareIndex] ?? null;
+
 		await db.transaction(async (tx: typeof db) => {
 			await tx
 				.update(transactions)
 				.set({
 					...sharedPayload,
+					...exchangeFields,
 					amount: normalizedAmount,
+					originAmount: originAmountForShare(0),
 					payerId: data.payerId ?? null,
 					installmentCount: data.installmentCount ?? null,
 					recurrenceCount: data.recurrenceCount ?? null,
@@ -935,15 +1099,18 @@ export async function updateTransactionSplitPairAction(
 					and(eq(transactions.id, data.id), eq(transactions.userId, user.id)),
 				);
 
-			if (existing.splitGroupId) {
+			for (const [index, sibling] of siblingRows.entries()) {
 				await tx
 					.update(transactions)
-					.set(sharedPayload)
+					.set({
+						...sharedPayload,
+						...exchangeFields,
+						originAmount: originAmountForShare(index + 1),
+					})
 					.where(
 						and(
-							eq(transactions.splitGroupId, existing.splitGroupId),
+							eq(transactions.id, sibling.id),
 							eq(transactions.userId, user.id),
-							ne(transactions.id, data.id),
 						),
 					);
 			}

@@ -238,6 +238,13 @@ export async function updateTransactionBulkAction(
 				existing.transactionType === "Despesa" ? -1 : 1;
 			const amountCents = Math.round(Math.abs(data.amount) * 100);
 			baseUpdatePayload.amount = centsToDecimalString(amountCents * amountSign);
+			// Edicao em massa nao sabe repartir o cambio original entre as linhas
+			// afetadas: preferir dado ausente e honesto a valor de origem obsoleto.
+			baseUpdatePayload.originCurrency = null;
+			baseUpdatePayload.originAmount = null;
+			baseUpdatePayload.exchangeRate = null;
+			baseUpdatePayload.rateSource = null;
+			baseUpdatePayload.rateDate = null;
 		}
 
 		const hasDueDateUpdate = data.dueDate !== undefined;
