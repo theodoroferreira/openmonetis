@@ -69,6 +69,13 @@ export type TransactionFormState = {
 	name: string;
 	transactionType: string;
 	amount: string;
+	/** Codigo ISO da moeda da compra. "BRL" = sem conversao. */
+	originCurrency: string;
+	originAmount: string;
+	/** Taxa como string para permitir edicao livre; "" = ainda nao resolvida. */
+	exchangeRate: string;
+	rateSource: string;
+	rateDate: string;
 	condition: string;
 	paymentMethod: string;
 	payerId: string | undefined;
@@ -99,6 +106,10 @@ type TransactionFormOverrides = {
 	defaultPurchaseDate?: string | null;
 	defaultName?: string | null;
 	defaultAmount?: string | null;
+	defaultCurrency?: string | null;
+	defaultOriginAmount?: string | null;
+	defaultRate?: string | null;
+	defaultRateSource?: string | null;
 	defaultTransactionType?: "Despesa" | "Receita";
 	defaultCategoryId?: string | null;
 	defaultCondition?: string | null;
@@ -172,6 +183,18 @@ export function buildTransactionInitialState(
 			overrides?.defaultTransactionType ??
 			TRANSACTION_TYPES[0],
 		amount: amountValue,
+		originCurrency:
+			transaction?.originCurrency ?? overrides?.defaultCurrency ?? "BRL",
+		originAmount:
+			transaction?.originAmount != null
+				? Math.abs(transaction.originAmount).toFixed(2)
+				: (overrides?.defaultOriginAmount ?? ""),
+		exchangeRate:
+			transaction?.exchangeRate != null
+				? String(transaction.exchangeRate)
+				: (overrides?.defaultRate ?? ""),
+		rateSource: transaction?.rateSource ?? overrides?.defaultRateSource ?? "",
+		rateDate: transaction?.rateDate ?? "",
 		condition:
 			transaction?.condition ??
 			overrides?.defaultCondition ??

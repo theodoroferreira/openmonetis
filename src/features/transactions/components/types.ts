@@ -6,6 +6,11 @@ export type TransactionItem = {
 	period: string;
 	transactionType: string;
 	amount: number;
+	originCurrency: string | null;
+	originAmount: number | null;
+	exchangeRate: number | null;
+	rateSource: string | null;
+	rateDate: string | null;
 	condition: string;
 	paymentMethod: string;
 	payerId: string | null;
