@@ -155,6 +155,7 @@ async function syncAccountTransactions(
 				const mapped = mapPluggyTransactionToInboxItem(transaction, {
 					accountType: account.type as PluggyAccount["type"],
 					connectorName,
+					accountCurrency: null,
 				});
 
 				return {

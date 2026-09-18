@@ -106,6 +106,7 @@ export const pluggyTransactionSchema = z.object({
 	descriptionRaw: z.string().nullable().optional(),
 	currencyCode: z.string(),
 	amount: z.number(),
+	amountInAccountCurrency: z.number().nullable().optional(),
 	date: z.string(),
 	type: z.enum(["DEBIT", "CREDIT"]),
 	balance: z.number().nullable().optional(),

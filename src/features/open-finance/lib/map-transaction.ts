@@ -24,12 +24,57 @@ export type PluggyTransactionMapped = {
 	parsedPaymentMethod: (typeof PAYMENT_METHODS)[number] | null;
 	parsedInstallmentCount: number | null;
 	parsedCurrentInstallment: number | null;
+	currency: CurrencyResolution;
 };
 
 export type PluggyTransactionMapContext = {
 	accountType: PluggyAccount["type"];
 	connectorName: string;
+	accountCurrency: string | null;
 };
+
+const BASE_CURRENCY = "BRL";
+
+/**
+ * Como a moeda da transacao se resolve. A funcao permanece pura: ela
+ * classifica, e quem faz I/O de cotacao e o `sync.ts`, que ja e async.
+ */
+export type CurrencyResolution =
+	| { kind: "base" }
+	| { kind: "converted"; currency: string; originAmount: number; rate: number }
+	| { kind: "unconverted"; currency: string; originAmount: number };
+
+function resolveCurrency(
+	transaction: PluggyTransaction,
+	accountCurrency: string,
+): CurrencyResolution {
+	const currency = transaction.currencyCode;
+
+	if (currency === accountCurrency && currency === BASE_CURRENCY) {
+		return { kind: "base" };
+	}
+
+	const converted = transaction.amountInAccountCurrency;
+	const origin = Math.abs(transaction.amount);
+
+	// `amountInAccountCurrency` so vem quando a moeda da transacao difere da
+	// moeda da conta, e ja traz IOF e spread como a instituicao cobrou.
+	// O sinal vem invertido em cartao de credito, dai o abs nos dois lados.
+	if (typeof converted === "number" && converted !== 0 && origin !== 0) {
+		return {
+			kind: "converted",
+			currency,
+			originAmount: origin,
+			rate: Math.abs(converted) / origin,
+		};
+	}
+
+	if (currency === BASE_CURRENCY) {
+		return { kind: "base" };
+	}
+
+	return { kind: "unconverted", currency, originAmount: origin };
+}
 
 const PAYMENT_DATA_METHOD_MAP: Record<
 	string,
@@ -76,6 +121,11 @@ export function mapPluggyTransactionToInboxItem(
 	const totalInstallments = creditCardMetadata?.totalInstallments ?? null;
 	const hasInstallments = totalInstallments !== null && totalInstallments > 1;
 
+	const currency = resolveCurrency(
+		transaction,
+		context.accountCurrency ?? BASE_CURRENCY,
+	);
+
 	return {
 		pluggyTransactionId: transaction.id,
 		pluggyStatus: transaction.status,
@@ -84,7 +134,11 @@ export function mapPluggyTransactionToInboxItem(
 		originalText: transaction.descriptionRaw ?? transaction.description,
 		notificationTimestamp: new Date(transaction.date),
 		parsedName: transaction.merchant?.name ?? transaction.description,
-		parsedAmount: formatDecimalForDbRequired(Math.abs(transaction.amount)),
+		parsedAmount: formatDecimalForDbRequired(
+			currency.kind === "converted"
+				? currency.originAmount * currency.rate
+				: Math.abs(transaction.amount),
+		),
 		parsedTransactionType:
 			transaction.type === "CREDIT" ? "Receita" : "Despesa",
 		parsedDate: toDateOnly(parsedDateSource),
@@ -96,5 +150,6 @@ export function mapPluggyTransactionToInboxItem(
 		parsedCurrentInstallment: hasInstallments
 			? (creditCardMetadata?.installmentNumber ?? null)
 			: null,
+		currency,
 	};
 }
