@@ -12,7 +12,7 @@ import {
 	connectPluggyItemAction,
 	disconnectPluggyItemAction,
 	refreshPluggyItemAction,
-} from "@/features/settings/actions/open-finance";
+} from "@/features/open-finance/actions";
 import {
 	AlertDialog,
 	AlertDialogAction,

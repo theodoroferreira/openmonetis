@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
-import { apiTokens, pluggyItems } from "@/db/schema";
+import { apiTokens } from "@/db/schema";
+import { fetchPluggyItems } from "@/features/open-finance/queries";
 import { db, schema } from "@/shared/lib/db";
 import { isPluggyConfigured } from "@/shared/lib/pluggy/client";
 
@@ -21,16 +22,6 @@ interface ApiToken {
 	createdAt: Date;
 	expiresAt: Date | null;
 	revokedAt: Date | null;
-}
-
-export interface PluggyItemRow {
-	id: string;
-	pluggyItemId: string;
-	connectorId: number | null;
-	connectorName: string | null;
-	status: string;
-	lastSyncedAt: Date | null;
-	createdAt: Date;
 }
 
 async function fetchAuthProvider(userId: string): Promise<string> {
@@ -77,22 +68,6 @@ async function fetchApiTokens(userId: string): Promise<ApiToken[]> {
 		.from(apiTokens)
 		.where(eq(apiTokens.userId, userId))
 		.orderBy(desc(apiTokens.createdAt));
-}
-
-async function fetchPluggyItems(userId: string): Promise<PluggyItemRow[]> {
-	return db
-		.select({
-			id: pluggyItems.id,
-			pluggyItemId: pluggyItems.pluggyItemId,
-			connectorId: pluggyItems.connectorId,
-			connectorName: pluggyItems.connectorName,
-			status: pluggyItems.status,
-			lastSyncedAt: pluggyItems.lastSyncedAt,
-			createdAt: pluggyItems.createdAt,
-		})
-		.from(pluggyItems)
-		.where(eq(pluggyItems.userId, userId))
-		.orderBy(desc(pluggyItems.createdAt));
 }
 
 export async function fetchSettingsPageData(userId: string) {

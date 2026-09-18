@@ -2,10 +2,9 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-
+import { OpenFinanceTab } from "@/features/open-finance/components/open-finance-tab";
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
-import { OpenFinanceTab } from "@/features/settings/components/open-finance-tab";
 import { PasskeysForm } from "@/features/settings/components/passkeys-form";
 import { PreferencesForm } from "@/features/settings/components/preferences-form";
 import { UpdateEmailForm } from "@/features/settings/components/update-email-form";
