@@ -565,6 +565,8 @@ export async function convertTransactionToInstallmentAction(
 			amountSign,
 			shouldNullifySettled: true,
 			seriesId,
+			originShareCents: null,
+			exchange: null,
 		}).map((record) => ({
 			...record,
 			importBatchId: existing.importBatchId,
@@ -739,6 +741,8 @@ export async function convertTransactionToRecurringAction(
 			amountSign,
 			shouldNullifySettled: isCreditCard,
 			seriesId,
+			originShareCents: null,
+			exchange: null,
 		}).map((record) => ({
 			...record,
 			importBatchId: existing.importBatchId,
