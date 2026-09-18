@@ -14,7 +14,11 @@ describe("formatForeignCurrency", () => {
 		expect(formatForeignCurrency(-100, "USD")).toBe("US$ 100,00");
 	});
 
-	it("cai para o codigo quando a moeda e desconhecida do Intl", () => {
+	it("moeda desconhecida mas valida para o Intl ainda formata o numero", () => {
 		expect(formatForeignCurrency(10, "XXX")).toContain("10,00");
+	});
+
+	it("cai para o codigo quando o Intl rejeita a moeda como invalida", () => {
+		expect(formatForeignCurrency(10, "US")).toBe("US 10,00");
 	});
 });
