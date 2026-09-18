@@ -5,6 +5,37 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.10.0] - 2026-09-18
+
+Esta versão abre o app para compras em moeda estrangeira. Até aqui todo
+lançamento era implicitamente em real, e uma compra internacional vinda do
+Open Finance entrava com o valor em dólar gravado como se fosse reais — um
+erro de proporção silencioso. Agora a moeda é escolhida no lançamento, a
+conversão usa a cotação do dia da compra, e o app sempre diz de onde veio a
+taxa: exata quando o próprio banco converteu, aproximada quando saiu do
+PTAX ou do Banco Central Europeu.
+
+### Adicionado
+
+- Seleção de moeda no diálogo de lançamento, com 30 moedas suportadas.
+- Conversão automática pela cotação do dia da compra, via BCB PTAX com
+  fallback no Frankfurter. Ambas as fontes são gratuitas e não exigem chave.
+- Campo de cotação editável para quando nenhuma fonte responde ou quando o
+  usuário tem a taxa efetiva da fatura.
+- Indicação da fonte e da data da cotação no lançamento, com aviso de valor
+  aproximado sempre que a taxa não vier do próprio banco.
+- Exibição da moeda de origem na tabela de lançamentos e a decomposição
+  completa no diálogo de detalhes.
+- Cache permanente de cotações em `cotacoes_cambio`.
+- Vitest para as funções puras de câmbio e de rateio.
+
+### Corrigido
+
+- Compra internacional sincronizada pelo Open Finance entrava na inbox com o
+  valor na moeda estrangeira tratado como reais. O campo
+  `amountInAccountCurrency` do Pluggy, que traz a conversão da própria
+  instituição com IOF e spread, chegava da API e era descartado.
+
 ## [2.9.0] - 2026-09-17
 
 Esta versão completa a integração com Open Finance pelo Pluggy: a partir de um item já conectado, o OpenMonetis agora descobre as contas e cartões, permite vincular cada um manualmente a um destino existente ou novo (ou ignorar), e importa os lançamentos como pré-lançamentos na Inbox para revisão. Pagamento de fatura de cartão chega identificado nas duas pernas (cartão e conta corrente), com sugestão de categoria a partir do seu próprio histórico. Nenhum saldo do Pluggy entra no cálculo interno, e nenhum lançamento é criado sem confirmação.
