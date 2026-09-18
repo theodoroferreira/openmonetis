@@ -11,6 +11,8 @@ export interface InboxItem {
 	notificationTimestamp: Date;
 	parsedName: string | null;
 	parsedAmount: string | null;
+	pluggyAccountId: string | null;
+	pluggyFlag: string | null;
 	status: string;
 	transactionId: string | null;
 	processedAt: Date | null;

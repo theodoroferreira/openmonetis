@@ -5,6 +5,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 	useTransition,
 } from "react";
@@ -206,9 +207,25 @@ export function InboxPage({
 		throw new Error(result.error);
 	};
 
+	// IDs já vistos (para so pre-selecionar pluggy_flag='pagamento_fatura_cartao' na
+	// primeira vez que o item aparece, sem sobrescrever uma desmarcação manual do usuário).
+	const seenItemIdsRef = useRef<Set<string>>(new Set());
+
 	useEffect(() => {
 		const visibleIds = new Set(items.map((item) => item.id));
-		setSelectedIds((current) => current.filter((id) => visibleIds.has(id)));
+		setSelectedIds((current) => {
+			const next = new Set(current.filter((id) => visibleIds.has(id)));
+			for (const item of items) {
+				if (
+					item.pluggyFlag === "pagamento_fatura_cartao" &&
+					!seenItemIdsRef.current.has(item.id)
+				) {
+					next.add(item.id);
+				}
+				seenItemIdsRef.current.add(item.id);
+			}
+			return [...next];
+		});
 	}, [items]);
 
 	const toggleSelection = useCallback((id: string) => {

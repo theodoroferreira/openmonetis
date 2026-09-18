@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	RiAlertLine,
 	RiArrowGoBackLine,
 	RiCheckLine,
 	RiDeleteBinLine,
@@ -30,6 +31,13 @@ import { resolveLogoSrc } from "@/shared/lib/logo";
 import type { InboxItem } from "./types";
 
 const DEFAULT_INBOX_APP_LOGO = "/avatars/default_icon.png";
+
+const PLUGGY_FLAG_MESSAGES: Record<string, string> = {
+	pagamento_fatura_cartao:
+		"Pagamento de fatura no cartão — provável duplicidade com as compras do cartão, revise antes de lançar.",
+	pagamento_fatura_conta:
+		"Pagamento de fatura de cartão na conta — verifique se já lançou os gastos do cartão antes de confirmar.",
+};
 
 function findMatchingLogo(
 	sourceAppName: string | null,
@@ -81,6 +89,10 @@ export const InboxCard = memo(function InboxCard({
 	const displayLogo = matchedLogo ?? DEFAULT_INBOX_APP_LOGO;
 
 	const amount = item.parsedAmount ? parseFloat(item.parsedAmount) : null;
+	const isPluggyOrigin = item.sourceApp === "pluggy";
+	const flagMessage = item.pluggyFlag
+		? PLUGGY_FLAG_MESSAGES[item.pluggyFlag]
+		: null;
 
 	const createdAtDate = new Date(item.createdAt);
 
@@ -127,9 +139,17 @@ export const InboxCard = memo(function InboxCard({
 							/>
 						</div>
 						<div className="flex min-w-0 flex-col">
-							<span className="truncate font-semibold text-base">
-								{item.sourceAppName || item.sourceApp}
-							</span>
+							<div className="flex min-w-0 items-center gap-1.5">
+								<span className="truncate font-semibold text-base">
+									{item.sourceAppName || item.sourceApp}
+								</span>
+								<Badge
+									variant="outline"
+									className="shrink-0 px-1.5 py-0 text-[10px] font-normal"
+								>
+									{isPluggyOrigin ? "Pluggy" : "Notificação"}
+								</Badge>
+							</div>
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="cursor-default text-xs text-muted-foreground underline decoration-dotted underline-offset-2">
@@ -150,6 +170,17 @@ export const InboxCard = memo(function InboxCard({
 			</CardHeader>
 
 			<CardContent className="min-h-0 flex-1 overflow-hidden py-2">
+				{flagMessage && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div className="mb-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+								<RiAlertLine className="size-3.5 shrink-0" />
+								<span className="truncate">{flagMessage}</span>
+							</div>
+						</TooltipTrigger>
+						<TooltipContent>{flagMessage}</TooltipContent>
+					</Tooltip>
+				)}
 				{item.originalTitle && (
 					<p className="mb-1 line-clamp-2 text-sm font-medium">
 						{item.originalTitle}
