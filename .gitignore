@@ -120,6 +120,8 @@ QWEN.md
 # Arquivos de lock temporários
 package-lock.json  # Se usa pnpm, não precisa do npm lock
 yarn.lock          # Se usa pnpm, não precisa do yarn lock
+/scripts/ralph
+/tasks
 
 # Drizzle Studio local cache
 .drizzle/
