@@ -616,6 +616,32 @@ export const inboxItems = pgTable(
 		parsedName: text("parsed_name"), // Nome do estabelecimento
 		parsedAmount: numeric("parsed_amount", { precision: 12, scale: 2 }),
 
+		// Campos de origem Pluggy (US-002)
+		pluggyTransactionId: text("pluggy_transaction_id"),
+		pluggyAccountId: uuid("pluggy_account_id").references(
+			() => pluggyAccounts.id,
+			{ onDelete: "set null" },
+		),
+		pluggyStatus: text("pluggy_status"),
+		pluggyFlag: text("pluggy_flag"),
+		parsedTransactionType: text("parsed_transaction_type"),
+		parsedDate: date("parsed_date", { mode: "date" }),
+		parsedPeriod: text("parsed_period"),
+		parsedPaymentMethod: text("parsed_payment_method"),
+		parsedCategoryId: uuid("parsed_category_id").references(
+			() => categories.id,
+			{ onDelete: "set null" },
+		),
+		parsedAccountId: uuid("parsed_account_id").references(
+			() => financialAccounts.id,
+			{ onDelete: "set null" },
+		),
+		parsedCardId: uuid("parsed_card_id").references(() => cards.id, {
+			onDelete: "set null",
+		}),
+		parsedInstallmentCount: integer("parsed_installment_count"),
+		parsedCurrentInstallment: integer("parsed_current_installment"),
+
 		// Status de processamento
 		status: text("status").notNull().default("pending"), // pending, processed, discarded
 
@@ -654,6 +680,11 @@ export const inboxItems = pgTable(
 		transactionIdIdx: index("pre_lancamentos_lancamento_id_idx").on(
 			table.transactionId,
 		),
+		userIdPluggyTransactionIdIdx: uniqueIndex(
+			"pre_lancamentos_user_id_pluggy_transaction_id_idx",
+		)
+			.on(table.userId, table.pluggyTransactionId)
+			.where(sql`pluggy_transaction_id IS NOT NULL`),
 	}),
 );
 
@@ -994,24 +1025,28 @@ export const pluggyItemsRelations = relations(pluggyItems, ({ one, many }) => ({
 	accounts: many(pluggyAccounts),
 }));
 
-export const pluggyAccountsRelations = relations(pluggyAccounts, ({ one }) => ({
-	user: one(user, {
-		fields: [pluggyAccounts.userId],
-		references: [user.id],
+export const pluggyAccountsRelations = relations(
+	pluggyAccounts,
+	({ one, many }) => ({
+		user: one(user, {
+			fields: [pluggyAccounts.userId],
+			references: [user.id],
+		}),
+		item: one(pluggyItems, {
+			fields: [pluggyAccounts.itemId],
+			references: [pluggyItems.id],
+		}),
+		financialAccount: one(financialAccounts, {
+			fields: [pluggyAccounts.accountId],
+			references: [financialAccounts.id],
+		}),
+		card: one(cards, {
+			fields: [pluggyAccounts.cardId],
+			references: [cards.id],
+		}),
+		inboxItems: many(inboxItems),
 	}),
-	item: one(pluggyItems, {
-		fields: [pluggyAccounts.itemId],
-		references: [pluggyItems.id],
-	}),
-	financialAccount: one(financialAccounts, {
-		fields: [pluggyAccounts.accountId],
-		references: [financialAccounts.id],
-	}),
-	card: one(cards, {
-		fields: [pluggyAccounts.cardId],
-		references: [cards.id],
-	}),
-}));
+);
 
 export const inboxItemsRelations = relations(inboxItems, ({ one }) => ({
 	user: one(user, {
@@ -1021,6 +1056,22 @@ export const inboxItemsRelations = relations(inboxItems, ({ one }) => ({
 	transaction: one(transactions, {
 		fields: [inboxItems.transactionId],
 		references: [transactions.id],
+	}),
+	pluggyAccount: one(pluggyAccounts, {
+		fields: [inboxItems.pluggyAccountId],
+		references: [pluggyAccounts.id],
+	}),
+	parsedCategory: one(categories, {
+		fields: [inboxItems.parsedCategoryId],
+		references: [categories.id],
+	}),
+	parsedAccount: one(financialAccounts, {
+		fields: [inboxItems.parsedAccountId],
+		references: [financialAccounts.id],
+	}),
+	parsedCard: one(cards, {
+		fields: [inboxItems.parsedCardId],
+		references: [cards.id],
 	}),
 }));
 
