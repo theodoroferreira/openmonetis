@@ -2,15 +2,22 @@ import "server-only";
 
 import type { z } from "zod";
 import {
+	type PluggyAccount,
 	type PluggyItem,
+	type PluggyTransaction,
+	pluggyAccountsListResponseSchema,
 	pluggyAuthResponseSchema,
 	pluggyItemSchema,
+	pluggyTransactionsPageSchema,
 } from "@/shared/lib/pluggy/schemas";
 
 const PLUGGY_API_URL = "https://api.pluggy.ai";
 
 /** A API Key do Pluggy vale 2 horas. Renovamos aos 110 minutos. */
 const API_KEY_TTL_MS = 110 * 60 * 1000;
+
+/** Timeout para toda chamada HTTP ao Pluggy. */
+const PLUGGY_FETCH_TIMEOUT_MS = 15_000;
 
 let cachedKey: { apiKey: string; expiresAt: number } | null = null;
 
@@ -49,6 +56,7 @@ async function requestApiKey(): Promise<string> {
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ clientId, clientSecret }),
 		cache: "no-store",
+		signal: AbortSignal.timeout(PLUGGY_FETCH_TIMEOUT_MS),
 	});
 
 	if (!response.ok) {
@@ -88,6 +96,7 @@ export async function pluggyFetch<T>(
 				"X-API-KEY": apiKey,
 			},
 			cache: "no-store",
+			signal: AbortSignal.timeout(PLUGGY_FETCH_TIMEOUT_MS),
 		});
 
 	let response = await send(await getApiKey());
@@ -107,7 +116,60 @@ export async function pluggyFetch<T>(
 	return schema.parse(await response.json());
 }
 
+/** Converte um timestamp ISO opcional do Pluggy (ex: `item.updatedAt`) em Date, ou null. */
+export function parsePluggyDate(value?: string | null): Date | null {
+	if (!value) return null;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Busca um item. Usado para validar um itemId antes de gravá-lo. */
 export async function fetchPluggyItem(itemId: string): Promise<PluggyItem> {
 	return pluggyFetch(`/items/${itemId}`, pluggyItemSchema);
+}
+
+/** Lista todas as contas (bancárias e de cartão) descobertas para um item. */
+export async function listAccounts(itemId: string): Promise<PluggyAccount[]> {
+	const params = new URLSearchParams({ itemId });
+	const page = await pluggyFetch(
+		`/accounts?${params.toString()}`,
+		pluggyAccountsListResponseSchema,
+	);
+	return page.results;
+}
+
+/**
+ * Extrai o valor de `after` do campo `next` da resposta paginada.
+ * `next` é a query string pronta para a próxima página; nunca deve ser
+ * reenviado inteiro — apenas o valor decodificado de `after`.
+ */
+function extractAfterCursor(next: string | null): string | null {
+	if (!next) return null;
+	const query = next.startsWith("?") ? next.slice(1) : next;
+	return new URLSearchParams(query).get("after");
+}
+
+/**
+ * Lista transações de uma conta via `/v2/transactions` (cursor-based).
+ * Nunca usa o endpoint `/transactions` (deprecado).
+ */
+export async function listTransactions({
+	accountId,
+	after,
+	dateFrom,
+}: {
+	accountId: string;
+	after?: string;
+	dateFrom?: string;
+}): Promise<{ results: PluggyTransaction[]; after: string | null }> {
+	const params = new URLSearchParams({ accountId });
+	if (after) params.set("after", after);
+	if (dateFrom) params.set("dateFrom", dateFrom);
+
+	const page = await pluggyFetch(
+		`/v2/transactions?${params.toString()}`,
+		pluggyTransactionsPageSchema,
+	);
+
+	return { results: page.results, after: extractAfterCursor(page.next) };
 }

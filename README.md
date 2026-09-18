@@ -10,7 +10,7 @@
 
 > **Não há versão online hospedada.** Você precisa clonar o repositório e rodar localmente ou no seu próprio servidor.
 
-[![Version](https://img.shields.io/badge/version-2.8.0-blue?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.9.0-blue?style=flat-square)](CHANGELOG.md)
 [![Next.js](https://img.shields.io/badge/Next.js-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
@@ -59,7 +59,7 @@ A ideia é simples: ter um lugar onde consigo ver todas as minhas contas, cartõ
 
 **1. Não há versão hospedada online** — Este projeto é self-hosted. Você precisa rodar no seu próprio computador ou servidor.
 
-**2. Não há Open Finance** — Não há conexão automática com bancos. Você pode registrar transações manualmente, usar o app companion para capturar notificações bancárias ou importar extratos nos formatos OFX e XLS/XLSX.
+**2. Open Finance é opcional e semiautomático** — Via Pluggy você conecta bancos e importa contas e lançamentos como pré-lançamentos na Inbox, mas o vínculo de cada conta/cartão do Pluggy com uma conta/cartão do OpenMonetis é manual, e o saldo trazido do Pluggy é só informativo (não entra no cálculo interno). Sem configurar as credenciais do Pluggy, nada muda: você continua podendo registrar transações manualmente, usar o app companion para capturar notificações bancárias ou importar extratos nos formatos OFX e XLS/XLSX.
 
 **3. Requer disciplina** — O OpenMonetis funciona melhor para quem tem disciplina de registrar os gastos regularmente, quer controle total sobre seus dados e gosta de entender exatamente onde o dinheiro está indo.
 
@@ -506,6 +506,21 @@ BETTER_AUTH_TRUSTED_ORIGINS=https://*.trycloudflare.com,https://openmonetis.seud
 ```
 
 Para Google OAuth e outros callbacks externos, mantenha `BETTER_AUTH_URL` apontando para a URL pública/canônica configurada no provedor.
+
+### Open Finance / Sincronização Pluggy
+
+Depois de conectar um item no Meu Pluggy e vinculá-lo em Ajustes > Open Finance, o OpenMonetis descobre as contas e cartões daquele item, mas **não assume automaticamente para onde cada um vai**: você escolhe manualmente, por conta, se ela aponta para uma conta/cartão já existente, se cria um novo, ou se deve ser ignorada. Só contas vinculadas sincronizam lançamentos. O saldo, limite e limite disponível trazidos do Pluggy são exibidos como informação (`contas_pluggy.saldo`), mas **nunca entram no saldo inicial nem no cálculo interno** das suas contas/cartões — o cálculo continua sendo feito exclusivamente a partir dos lançamentos registrados no OpenMonetis.
+
+Lançamentos importados chegam como pré-lançamentos na Inbox para revisão, com sugestão de categoria, tipo, forma de pagamento e parcelamento já preenchidos quando possível — nada é lançado automaticamente sem sua confirmação.
+
+Pela interface, o botão "Atualizar agora" em Ajustes > Open Finance dispara a sincronização sob demanda. Para automatizar, use a rota `POST /api/pluggy/sync`, autenticada por um token de API (gerado em Ajustes > Companion, mesmo token usado pelo app companion) enviado como `Bearer`:
+
+```bash
+curl -X POST https://seu-dominio/api/pluggy/sync \
+  -H "Authorization: Bearer opm_seu_token_aqui"
+```
+
+O agendamento é feito fora do OpenMonetis — não há cron embutido na imagem Docker nem no `docker-entrypoint.sh`. Configure a chamada periódica com o agendador que preferir: cron do host, GitHub Actions (`schedule` no workflow) ou Vercel Cron, por exemplo a cada poucas horas. A rota aplica um limite próprio de 6 requisições por hora por usuário e retorna `429` caso seja excedido.
 
 ### IA local com Ollama
 

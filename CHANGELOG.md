@@ -5,6 +5,24 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.9.0] - 2026-09-17
+
+Esta versão completa a integração com Open Finance pelo Pluggy: a partir de um item já conectado, o OpenMonetis agora descobre as contas e cartões, permite vincular cada um manualmente a um destino existente ou novo (ou ignorar), e importa os lançamentos como pré-lançamentos na Inbox para revisão. Pagamento de fatura de cartão chega identificado nas duas pernas (cartão e conta corrente), com sugestão de categoria a partir do seu próprio histórico. Nenhum saldo do Pluggy entra no cálculo interno, e nenhum lançamento é criado sem confirmação.
+
+### Adicionado
+- Open Finance: descoberta de contas e cartões por item conectado, com vínculo manual (conta/cartão existente, criação de novo destino, ou ignorar) em Ajustes > Open Finance.
+- Open Finance: sincronização de lançamentos das contas vinculadas para a Inbox como pré-lançamentos, com deduplicação por transação, cursor incremental por conta e isolamento de falha (uma conta com erro não interrompe as demais).
+- Open Finance: detecção de pagamento de fatura de cartão de crédito nas duas pernas (cartão e conta corrente), evitando duplicidade de despesa quando você paga a fatura.
+- Open Finance: sugestão automática de categoria a partir do seu histórico de importações (`import_category_mappings`), pelo mesmo mecanismo já usado na importação OFX.
+- Open Finance: botão "Atualizar agora" em Ajustes > Open Finance, com feedback de contas sincronizadas, falhas e pré-lançamentos criados.
+- API: rota `POST /api/pluggy/sync`, autenticada por token de API, para disparar a sincronização por agendamento externo (cron do host, GitHub Actions, Vercel Cron), com limite próprio de 6 requisições por hora.
+- Inbox: badge de origem (notificação ou Pluggy) e aviso visível quando o item é identificado como pagamento de fatura, com pré-seleção de descarte apenas na perna do cartão.
+- Inbox: o dialogo de lançamento agora chega pré-preenchido com tipo, data, período, forma de pagamento, conta/cartão, categoria e parcelamento quando o item vem do Pluggy.
+
+### Alterado
+- ATENÇÃO — mudança no banco de dados: esta versão adiciona a tabela contas_pluggy e 13 colunas novas em pre_lancamentos, além de remover a coluna lastTransactionCursor de itens_pluggy. Aplique as migrações 0037_adorable_forgotten_one.sql e 0038_youthful_leopardon.sql antes de iniciar a aplicação atualizada (pnpm run db:migrate em instalações manuais). A imagem Docker tenta aplicar as migrações automaticamente durante a inicialização.
+- Open Finance: o vínculo de cada conta/cartão do Pluggy com o OpenMonetis é sempre manual — o saldo, limite e limite disponível trazidos do Pluggy são informativos e nunca substituem o saldo inicial nem entram no cálculo interno.
+
 ## [2.8.0] - 2026-09-17
 
 Esta versão adiciona a base da integração com Open Finance pelo Pluggy. Por enquanto ela cobre apenas a conexão: você vincula no OpenMonetis um item já conectado no Meu Pluggy e acompanha o status dele. Nenhum dado financeiro é importado ainda — contas e lançamentos ficam para uma versão seguinte.

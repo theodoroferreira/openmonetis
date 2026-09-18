@@ -100,6 +100,10 @@ type TransactionFormOverrides = {
 	defaultName?: string | null;
 	defaultAmount?: string | null;
 	defaultTransactionType?: "Despesa" | "Receita";
+	defaultCategoryId?: string | null;
+	defaultCondition?: string | null;
+	defaultInstallmentCount?: number | null;
+	defaultStartInstallment?: number | null;
 	isImporting?: boolean;
 };
 
@@ -168,7 +172,10 @@ export function buildTransactionInitialState(
 			overrides?.defaultTransactionType ??
 			TRANSACTION_TYPES[0],
 		amount: amountValue,
-		condition: transaction?.condition ?? TRANSACTION_CONDITIONS[0],
+		condition:
+			transaction?.condition ??
+			overrides?.defaultCondition ??
+			TRANSACTION_CONDITIONS[0],
 		paymentMethod,
 		payerId: fallbackPayerId ?? undefined,
 		secondaryPayerId: undefined,
@@ -193,16 +200,20 @@ export function buildTransactionInitialState(
 				: undefined,
 		categoryId: isImporting
 			? undefined
-			: (transaction?.categoryId ?? undefined),
+			: (transaction?.categoryId ?? overrides?.defaultCategoryId ?? undefined),
 		installmentCount: transaction?.installmentCount
 			? String(transaction.installmentCount)
-			: "",
+			: overrides?.defaultInstallmentCount
+				? String(overrides.defaultInstallmentCount)
+				: "",
 		startInstallment:
 			isImporting &&
 			transaction?.condition === "Parcelado" &&
 			transaction.currentInstallment
 				? String(transaction.currentInstallment)
-				: "1",
+				: overrides?.defaultStartInstallment
+					? String(overrides.defaultStartInstallment)
+					: "1",
 		recurrenceCount: transaction?.recurrenceCount
 			? String(transaction.recurrenceCount)
 			: "",
