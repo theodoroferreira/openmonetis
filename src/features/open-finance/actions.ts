@@ -10,6 +10,7 @@ import {
 	fetchPluggyItem,
 	isPluggyConfigured,
 	PluggyError,
+	parsePluggyDate,
 } from "@/shared/lib/pluggy/client";
 
 type ActionResponse<T = void> = {
@@ -57,12 +58,6 @@ function handlePluggyActionError(
 		success: false,
 		error: defaultMessage,
 	};
-}
-
-function parseNullableDate(value?: string | null): Date | null {
-	if (!value) return null;
-	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -130,7 +125,7 @@ export async function connectPluggyItemAction(data: {
 			connectorId: item.connector.id,
 			connectorName: item.connector.name,
 			status: item.status,
-			lastSyncedAt: parseNullableDate(item.updatedAt),
+			lastSyncedAt: parsePluggyDate(item.updatedAt),
 		});
 
 		revalidatePath("/settings");
@@ -236,7 +231,7 @@ export async function refreshPluggyItemAction(
 			.update(pluggyItems)
 			.set({
 				status: item.status,
-				lastSyncedAt: parseNullableDate(item.updatedAt),
+				lastSyncedAt: parsePluggyDate(item.updatedAt),
 				updatedAt: new Date(),
 			})
 			.where(and(eq(pluggyItems.id, parsedId), eq(pluggyItems.userId, userId)));

@@ -116,6 +116,13 @@ export async function pluggyFetch<T>(
 	return schema.parse(await response.json());
 }
 
+/** Converte um timestamp ISO opcional do Pluggy (ex: `item.updatedAt`) em Date, ou null. */
+export function parsePluggyDate(value?: string | null): Date | null {
+	if (!value) return null;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Busca um item. Usado para validar um itemId antes de gravá-lo. */
 export async function fetchPluggyItem(itemId: string): Promise<PluggyItem> {
 	return pluggyFetch(`/items/${itemId}`, pluggyItemSchema);
