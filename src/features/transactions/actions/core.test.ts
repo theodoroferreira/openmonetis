@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildTransactionRecords, distributeProportionally } from "./core";
+import {
+	buildOriginAmountsForRows,
+	buildTransactionRecords,
+	distributeProportionally,
+} from "./core";
 
 describe("distributeProportionally", () => {
 	it("reparte proporcionalmente aos pesos", () => {
@@ -26,6 +30,31 @@ describe("distributeProportionally", () => {
 	it("preserva o total em divisao 70/30 com centavo quebrado", () => {
 		const parts = distributeProportionally(10001, [7000, 3000]);
 		expect(parts.reduce((acc, part) => acc + part, 0)).toBe(10001);
+	});
+});
+
+describe("buildOriginAmountsForRows", () => {
+	it("rateia o total de origem entre as linhas proporcional ao peso em BRL e sinaliza como despesa", () => {
+		const parts = buildOriginAmountsForRows(10000, [33945, 16973], -1);
+		expect(parts).toEqual(["-66.67", "-33.33"]);
+	});
+
+	it("sinaliza como receita quando amountSign e 1", () => {
+		const parts = buildOriginAmountsForRows(10000, [5000, 5000], 1);
+		expect(parts).toEqual(["50.00", "50.00"]);
+	});
+
+	it("a soma das partes em centavos bate com o total de origem", () => {
+		const parts = buildOriginAmountsForRows(10001, [7000, 3000], -1);
+		const somaCents = parts.reduce(
+			(acc, value) => acc + Math.round(Math.abs(Number(value)) * 100),
+			0,
+		);
+		expect(somaCents).toBe(10001);
+	});
+
+	it("lida com uma unica linha (dupla sem parceiro encontrado)", () => {
+		expect(buildOriginAmountsForRows(12345, [999], -1)).toEqual(["-123.45"]);
 	});
 });
 

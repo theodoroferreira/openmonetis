@@ -651,6 +651,24 @@ export const distributeProportionally = (
 	return result;
 };
 
+/**
+ * Deriva o valor de origem (string decimal, sinalizado) de cada linha de uma
+ * dupla/divisao ja existente a partir do total em moeda estrangeira, ratado
+ * proporcionalmente ao BRL de cada linha (`weightsCents`).
+ *
+ * Usado em updateTransactionSplitPairAction: ao editar so a linha principal,
+ * a(s) parceira(s) nao tem seu BRL alterado aqui, mas precisam de um valor de
+ * origem coerente com o cambio compartilhado da dupla.
+ */
+export const buildOriginAmountsForRows = (
+	originTotalCents: number,
+	weightsCents: number[],
+	amountSign: 1 | -1,
+): string[] =>
+	distributeProportionally(originTotalCents, weightsCents).map((cents) =>
+		centsToDecimalString(cents * amountSign),
+	);
+
 type Share = {
 	payerId: string | null;
 	amountCents: number;

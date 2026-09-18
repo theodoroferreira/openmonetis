@@ -26,6 +26,7 @@ import { copyAttachmentsForImport } from "../lib/attachment-copy";
 import { detectInstallmentFromName } from "../lib/installment-detection";
 import { cleanupAttachmentsAfterTransactionDelete } from "./attachments";
 import {
+	buildOriginAmountsForRows,
 	buildShares,
 	buildTransactionRecords,
 	type ConvertToInstallmentInput,
@@ -1033,12 +1034,63 @@ export async function updateTransactionSplitPairAction(
 			boletoPaymentDate: boletoPaymentDateValue,
 		};
 
+		// Os cinco campos de cambio sao compartilhados pela dupla (mesma compra
+		// original), mas o valor de origem e rateado por linha proporcional ao
+		// BRL de cada uma — a linha principal usa o valor novo, a(s) parceira(s)
+		// mantem o BRL atual (nao editado aqui).
+		const hasExchange = Boolean(
+			data.originCurrency &&
+				data.exchangeRate &&
+				data.rateSource &&
+				data.rateDate,
+		);
+		const siblingRows = existing.splitGroupId
+			? await db.query.transactions.findMany({
+					columns: { id: true, amount: true },
+					where: and(
+						eq(transactions.splitGroupId, existing.splitGroupId),
+						eq(transactions.userId, user.id),
+						ne(transactions.id, data.id),
+					),
+				})
+			: [];
+		const originWeightsCents = [
+			amountCents,
+			...siblingRows.map((row) =>
+				Math.round(Math.abs(Number(row.amount)) * 100),
+			),
+		];
+		const originAmountsByRow = hasExchange
+			? buildOriginAmountsForRows(
+					Math.round(Math.abs(data.originAmount ?? 0) * 100),
+					originWeightsCents,
+					amountSign,
+				)
+			: null;
+		const exchangeFields = hasExchange
+			? {
+					originCurrency: data.originCurrency as string,
+					exchangeRate: (data.exchangeRate as number).toFixed(8),
+					rateSource: data.rateSource as string,
+					rateDate: data.rateDate as string,
+				}
+			: {
+					originCurrency: null,
+					exchangeRate: null,
+					rateSource: null,
+					rateDate: null,
+				};
+		const originAmountForShare = (shareIndex: number) =>
+			originAmountsByRow?.[shareIndex] ?? null;
+
 		await db.transaction(async (tx: typeof db) => {
 			await tx
 				.update(transactions)
 				.set({
 					...sharedPayload,
+					...exchangeFields,
 					amount: normalizedAmount,
+					originAmount: originAmountForShare(0),
 					payerId: data.payerId ?? null,
 					installmentCount: data.installmentCount ?? null,
 					recurrenceCount: data.recurrenceCount ?? null,
@@ -1047,15 +1099,18 @@ export async function updateTransactionSplitPairAction(
 					and(eq(transactions.id, data.id), eq(transactions.userId, user.id)),
 				);
 
-			if (existing.splitGroupId) {
+			for (const [index, sibling] of siblingRows.entries()) {
 				await tx
 					.update(transactions)
-					.set(sharedPayload)
+					.set({
+						...sharedPayload,
+						...exchangeFields,
+						originAmount: originAmountForShare(index + 1),
+					})
 					.where(
 						and(
-							eq(transactions.splitGroupId, existing.splitGroupId),
+							eq(transactions.id, sibling.id),
 							eq(transactions.userId, user.id),
-							ne(transactions.id, data.id),
 						),
 					);
 			}
