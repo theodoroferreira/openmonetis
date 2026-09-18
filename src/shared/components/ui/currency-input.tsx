@@ -5,12 +5,13 @@ import * as React from "react";
 import { cn } from "@/shared/utils/ui";
 import { Input } from "./input";
 
-const BRL_FORMATTER = new Intl.NumberFormat("pt-BR", {
-	style: "currency",
-	currency: "BRL",
-	minimumFractionDigits: 2,
-	maximumFractionDigits: 2,
-});
+const buildFormatter = (currency: string) =>
+	new Intl.NumberFormat("pt-BR", {
+		style: "currency",
+		currency,
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
 
 const digitsToDecimalString = (digits: string) => {
 	const sanitized = digits.replace(/\D/g, "");
@@ -41,7 +42,7 @@ const decimalToDigits = (value: string | undefined | null) => {
 	return cents === 0 ? "0" : cents.toString();
 };
 
-const formatDigits = (digits: string) => {
+const formatDigits = (digits: string, currency: string) => {
 	if (digits.length === 0) {
 		return "";
 	}
@@ -53,7 +54,7 @@ const formatDigits = (digits: string) => {
 		return "";
 	}
 
-	return BRL_FORMATTER.format(numeric);
+	return buildFormatter(currency).format(numeric);
 };
 
 interface CurrencyInputProps
@@ -62,6 +63,8 @@ interface CurrencyInputProps
 		"value" | "defaultValue" | "type" | "inputMode" | "onChange"
 	> {
 	value: string;
+	/** Codigo ISO 4217 usado na formatacao. Default BRL. */
+	currency?: string;
 	onValueChange: (value: string) => void;
 	onChange?: React.ComponentProps<typeof Input>["onChange"];
 }
@@ -69,35 +72,51 @@ interface CurrencyInputProps
 export const CurrencyInput = React.forwardRef<
 	HTMLInputElement,
 	CurrencyInputProps
->(({ className, value, onValueChange, onBlur, onChange, ...props }, ref) => {
-	const digits = React.useMemo(() => decimalToDigits(value), [value]);
-	const displayValue = React.useMemo(() => formatDigits(digits), [digits]);
+>(
+	(
+		{
+			className,
+			value,
+			currency = "BRL",
+			onValueChange,
+			onBlur,
+			onChange,
+			...props
+		},
+		ref,
+	) => {
+		const digits = React.useMemo(() => decimalToDigits(value), [value]);
+		const displayValue = React.useMemo(
+			() => formatDigits(digits, currency),
+			[digits, currency],
+		);
 
-	const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		const rawValue = event.target.value;
-		const nextDigits = rawValue.replace(/\D/g, "");
+		const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+			const rawValue = event.target.value;
+			const nextDigits = rawValue.replace(/\D/g, "");
 
-		if (nextDigits.length === 0) {
-			onValueChange("");
-		} else {
-			onValueChange(digitsToDecimalString(nextDigits));
-		}
+			if (nextDigits.length === 0) {
+				onValueChange("");
+			} else {
+				onValueChange(digitsToDecimalString(nextDigits));
+			}
 
-		onChange?.(event);
-	};
+			onChange?.(event);
+		};
 
-	return (
-		<Input
-			{...props}
-			ref={ref}
-			type="text"
-			inputMode="decimal"
-			value={displayValue}
-			onChange={handleChange}
-			onBlur={onBlur}
-			className={cn("text-left tracking-tight", className)}
-		/>
-	);
-});
+		return (
+			<Input
+				{...props}
+				ref={ref}
+				type="text"
+				inputMode="decimal"
+				value={displayValue}
+				onChange={handleChange}
+				onBlur={onBlur}
+				className={cn("text-left tracking-tight", className)}
+			/>
+		);
+	},
+);
 
 CurrencyInput.displayName = "CurrencyInput";

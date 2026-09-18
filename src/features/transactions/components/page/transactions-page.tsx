@@ -33,6 +33,7 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import type { RateSource } from "@/shared/lib/exchange/constants";
 import { formatCurrency } from "@/shared/utils/currency";
 import type {
 	TransactionsExportContext,
@@ -171,6 +172,11 @@ export function TransactionsPage({
 		isSettled: boolean | null;
 		dueDate: string | null;
 		boletoPaymentDate: string | null;
+		originCurrency: string | null;
+		originAmount: number | null;
+		exchangeRate: number | null;
+		rateSource: RateSource | null;
+		rateDate: string | null;
 		pendingDetachIds: string[];
 		pendingUploadFiles: File[];
 	} | null>(null);
@@ -482,6 +488,11 @@ export function TransactionsPage({
 			isSettled: pendingSplitEditData.isSettled,
 			dueDate: pendingSplitEditData.dueDate ?? undefined,
 			boletoPaymentDate: pendingSplitEditData.boletoPaymentDate ?? undefined,
+			originCurrency: pendingSplitEditData.originCurrency,
+			originAmount: pendingSplitEditData.originAmount,
+			exchangeRate: pendingSplitEditData.exchangeRate,
+			rateSource: pendingSplitEditData.rateSource,
+			rateDate: pendingSplitEditData.rateDate,
 			isSplit: false,
 		};
 

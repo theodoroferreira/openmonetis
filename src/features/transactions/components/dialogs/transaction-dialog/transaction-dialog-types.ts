@@ -1,4 +1,5 @@
 import type { TransactionFormState } from "@/features/transactions/lib/form-helpers";
+import type { RateSource } from "@/shared/lib/exchange/constants";
 import type { SelectOption, TransactionItem } from "../../types";
 
 export type FormState = TransactionFormState;
@@ -75,6 +76,11 @@ export interface TransactionDialogProps {
 		isSettled: boolean | null;
 		dueDate: string | null;
 		boletoPaymentDate: string | null;
+		originCurrency: string | null;
+		originAmount: number | null;
+		exchangeRate: number | null;
+		rateSource: RateSource | null;
+		rateDate: string | null;
 		pendingDetachIds: string[];
 		pendingUploadFiles: File[];
 	}) => void;
@@ -90,6 +96,7 @@ interface BaseFieldSectionProps {
 
 export interface BasicFieldsSectionProps extends BaseFieldSectionProps {
 	estabelecimentos: string[];
+	isLoadingRate: boolean;
 }
 
 export interface CategorySectionProps extends BaseFieldSectionProps {
