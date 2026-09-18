@@ -22,7 +22,27 @@ import type { PluggyAccount } from "@/shared/lib/pluggy/schemas";
 /** Sem cursor, a primeira carga de transacoes busca so os ultimos N dias. */
 const INITIAL_TRANSACTION_SYNC_LOOKBACK_DAYS = 90;
 
+/**
+ * Janela de lock por conta: uma conta com `syncing_at` mais recente que isso
+ * e considerada "em sincronizacao" por outro disparo concorrente e e pulada.
+ */
+const ACCOUNT_SYNC_LOCK_WINDOW_MINUTES = 15;
+
 const DEFAULT_CONNECTOR_NAME = "Pluggy";
+
+/** Agregado de uma rodada de `syncPluggyAccountTransactions`. */
+export interface SyncAccountsResult {
+	accountsSynced: number;
+	accountsFailed: number;
+	inboxItemsCreated: number;
+	inboxItemsUpdated: number;
+}
+
+function isAccountSyncLocked(syncingAt: Date | null, now: Date): boolean {
+	if (!syncingAt) return false;
+	const elapsedMs = now.getTime() - syncingAt.getTime();
+	return elapsedMs < ACCOUNT_SYNC_LOCK_WINDOW_MINUTES * 60 * 1000;
+}
 
 function buildInitialDateFrom(): string {
 	const date = new Date();
@@ -107,10 +127,12 @@ async function syncAccountTransactions(
 	},
 	userId: string,
 	connectorName: string,
-): Promise<void> {
+): Promise<{ created: number; updated: number }> {
 	let cursor = account.lastTransactionCursor ?? undefined;
 	let isFirstRequest = true;
 	let hasMore = true;
+	let created = 0;
+	let updated = 0;
 
 	while (hasMore) {
 		const page = await listTransactions({
@@ -167,7 +189,9 @@ async function syncAccountTransactions(
 			// processed/discarded ficam intocados (setWhere). O par
 			// (target + targetWhere) precisa espelhar exatamente o predicado do
 			// indice unico parcial em `src/db/schema.ts`.
-			await db
+			// `xmax = 0` distingue insert de update no retorno do PostgreSQL
+			// (linhas ignoradas por setWhere nao aparecem no retorno).
+			const written = await db
 				.insert(inboxItems)
 				.values(rows)
 				.onConflictDoUpdate({
@@ -181,7 +205,13 @@ async function syncAccountTransactions(
 						pluggyStatus: sql`excluded.pluggy_status`,
 						updatedAt: new Date(),
 					},
-				});
+				})
+				.returning({ inserted: sql<boolean>`(xmax = 0)` });
+
+			for (const row of written) {
+				if (row.inserted) created += 1;
+				else updated += 1;
+			}
 		}
 
 		hasMore = page.after !== null;
@@ -194,16 +224,22 @@ async function syncAccountTransactions(
 			cursor = page.after;
 		}
 	}
+
+	return { created, updated };
 }
 
 /**
  * Sincroniza as transacoes de todas as contas vinculadas do usuario. Contas
  * `pendente`/`ignorada` nunca sincronizam transacoes — so o saldo delas e
  * refrescado por `syncPluggyItemsAndAccounts`.
+ *
+ * Cada conta e isolada: uma conta com `syncing_at` dentro da janela de lock e
+ * pulada (outro disparo concorrente ja esta processando ela); uma conta que
+ * falha grava o erro em `last_sync_error` e nao interrompe as demais.
  */
 export async function syncPluggyAccountTransactions(
 	userId: string,
-): Promise<void> {
+): Promise<SyncAccountsResult> {
 	const accounts = await db.query.pluggyAccounts.findMany({
 		where: and(
 			eq(pluggyAccounts.userId, userId),
@@ -212,13 +248,59 @@ export async function syncPluggyAccountTransactions(
 		with: { item: true },
 	});
 
+	const result: SyncAccountsResult = {
+		accountsSynced: 0,
+		accountsFailed: 0,
+		inboxItemsCreated: 0,
+		inboxItemsUpdated: 0,
+	};
+
+	const now = new Date();
+
 	for (const account of accounts) {
-		await syncAccountTransactions(
-			account,
-			userId,
-			account.item.connectorName ?? DEFAULT_CONNECTOR_NAME,
-		);
+		if (isAccountSyncLocked(account.syncingAt, now)) continue;
+
+		await db
+			.update(pluggyAccounts)
+			.set({ syncingAt: new Date(), updatedAt: new Date() })
+			.where(eq(pluggyAccounts.id, account.id));
+
+		try {
+			const { created, updated } = await syncAccountTransactions(
+				account,
+				userId,
+				account.item.connectorName ?? DEFAULT_CONNECTOR_NAME,
+			);
+			result.accountsSynced += 1;
+			result.inboxItemsCreated += created;
+			result.inboxItemsUpdated += updated;
+
+			await db
+				.update(pluggyAccounts)
+				.set({
+					lastSyncError: null,
+					lastSyncedAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.where(eq(pluggyAccounts.id, account.id));
+		} catch (error) {
+			result.accountsFailed += 1;
+			const message =
+				error instanceof Error ? error.message : "Erro inesperado.";
+
+			await db
+				.update(pluggyAccounts)
+				.set({ lastSyncError: message, updatedAt: new Date() })
+				.where(eq(pluggyAccounts.id, account.id));
+		} finally {
+			await db
+				.update(pluggyAccounts)
+				.set({ syncingAt: null, updatedAt: new Date() })
+				.where(eq(pluggyAccounts.id, account.id));
+		}
 	}
 
 	revalidateForEntity("inbox", userId);
+
+	return result;
 }
