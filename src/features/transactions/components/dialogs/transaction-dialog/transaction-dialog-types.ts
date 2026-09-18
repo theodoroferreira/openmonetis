@@ -23,6 +23,10 @@ export interface TransactionDialogProps {
 	defaultPurchaseDate?: string | null;
 	defaultName?: string | null;
 	defaultAmount?: string | null;
+	defaultCategoryId?: string | null;
+	defaultCondition?: string | null;
+	defaultInstallmentCount?: number | null;
+	defaultStartInstallment?: number | null;
 	lockCardSelection?: boolean;
 	lockPaymentMethod?: boolean;
 	isImporting?: boolean;

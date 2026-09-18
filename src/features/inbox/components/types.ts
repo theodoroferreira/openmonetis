@@ -13,6 +13,15 @@ export interface InboxItem {
 	parsedAmount: string | null;
 	pluggyAccountId: string | null;
 	pluggyFlag: string | null;
+	parsedTransactionType: string | null;
+	parsedDate: Date | null;
+	parsedPeriod: string | null;
+	parsedPaymentMethod: string | null;
+	parsedCategoryId: string | null;
+	parsedAccountId: string | null;
+	parsedCardId: string | null;
+	parsedInstallmentCount: number | null;
+	parsedCurrentInstallment: number | null;
 	status: string;
 	transactionId: string | null;
 	processedAt: Date | null;

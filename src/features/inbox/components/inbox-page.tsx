@@ -383,7 +383,9 @@ export function InboxPage({
 	};
 
 	const defaultPurchaseDate =
-		getDateString(itemToProcess?.notificationTimestamp) ?? null;
+		getDateString(itemToProcess?.parsedDate) ??
+		getDateString(itemToProcess?.notificationTimestamp) ??
+		null;
 	const defaultName = itemToProcess?.parsedName
 		? itemToProcess.parsedName
 				.toLowerCase()
@@ -392,6 +394,19 @@ export function InboxPage({
 	const defaultAmount = itemToProcess?.parsedAmount
 		? String(Math.abs(Number(itemToProcess.parsedAmount)))
 		: null;
+	const defaultPeriod = itemToProcess?.parsedPeriod ?? undefined;
+	const defaultCategoryId = itemToProcess?.parsedCategoryId ?? null;
+	const defaultTransactionType =
+		itemToProcess?.parsedTransactionType === "Receita" ? "Receita" : "Despesa";
+	const defaultInstallmentCount =
+		itemToProcess?.parsedInstallmentCount &&
+		itemToProcess.parsedInstallmentCount > 1
+			? itemToProcess.parsedInstallmentCount
+			: null;
+	const defaultStartInstallment = defaultInstallmentCount
+		? (itemToProcess?.parsedCurrentInstallment ?? null)
+		: null;
+	const defaultCondition = defaultInstallmentCount ? "Parcelado" : null;
 
 	const matchedCartaoId = useMemo(() => {
 		const appName = itemToProcess?.sourceAppName?.toLowerCase();
@@ -403,6 +418,12 @@ export function InboxPage({
 		}
 		return null;
 	}, [itemToProcess?.sourceAppName, cardOptions]);
+
+	const defaultAccountId = itemToProcess?.parsedAccountId ?? null;
+	const defaultCardId = itemToProcess?.parsedCardId ?? matchedCartaoId;
+	const defaultPaymentMethod =
+		itemToProcess?.parsedPaymentMethod ??
+		(defaultCardId ? "Cartão de crédito" : null);
 
 	const showTabActions = (status: InboxStatus) =>
 		activeStatus === status &&
@@ -527,12 +548,18 @@ export function InboxPage({
 				cardOptions={cardOptions}
 				categoryOptions={categoryOptions}
 				estabelecimentos={estabelecimentos}
+				defaultPeriod={defaultPeriod}
 				defaultPurchaseDate={defaultPurchaseDate}
 				defaultName={defaultName}
 				defaultAmount={defaultAmount}
-				defaultCardId={matchedCartaoId}
-				defaultPaymentMethod={matchedCartaoId ? "Cartão de crédito" : null}
-				defaultTransactionType="Despesa"
+				defaultAccountId={defaultAccountId}
+				defaultCardId={defaultCardId}
+				defaultPaymentMethod={defaultPaymentMethod}
+				defaultCategoryId={defaultCategoryId}
+				defaultCondition={defaultCondition}
+				defaultInstallmentCount={defaultInstallmentCount}
+				defaultStartInstallment={defaultStartInstallment}
+				defaultTransactionType={defaultTransactionType}
 				forceShowTransactionType
 				onSuccess={handleLancamentoSuccess}
 			/>
