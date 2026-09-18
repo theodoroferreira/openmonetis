@@ -65,7 +65,7 @@ A ideia é simples: ter um lugar onde consigo ver todas as minhas contas, cartõ
 
 ### Funcionalidades
 
-💰 **Contas e transações** — Contas bancárias, cartões, dinheiro. Receitas, despesas, rendimentos e transferências. Categorização, divisão de lançamentos entre várias pessoas, filtros combináveis com intervalo de datas, extratos detalhados com identificação visual clara da conta e importação de extratos OFX e XLS/XLSX com detecção automática de categoria e deduplicação resiliente a identificadores bancários repetidos. Suporte a moeda estrangeira com conversão automática pela cotação do dia da compra (BCB PTAX com fallback no Frankfurter), indicação de fonte e data, e campo editável para quando você tem a taxa efetiva da fatura.
+💰 **Contas e transações** — Contas bancárias, cartões, dinheiro. Receitas, despesas, rendimentos e transferências. Categorização, divisão de lançamentos entre várias pessoas, filtros combináveis com intervalo de datas, extratos detalhados com identificação visual clara da conta e importação de extratos OFX e XLS/XLSX com detecção automática de categoria e deduplicação resiliente a identificadores bancários repetidos. Suporte a moeda estrangeira com conversão automática pela cotação do dia da compra (BCB PTAX com fallback no Frankfurter), indicação de fonte e data, e cotação e total em reais editáveis — editar um recalcula o outro — para quando você tem o valor efetivo da fatura.
 
 📊 **Dashboard e relatórios** — Widgets personalizáveis com listas consistentes, métricas com atalhos para lançamentos, gráficos de evolução, comparativos por categoria, tendências, uso de cartões, top estabelecimentos e navegação direta entre meses pelo seletor de período. Exportação em PDF e Excel.
 

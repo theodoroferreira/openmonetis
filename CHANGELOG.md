@@ -20,8 +20,9 @@ PTAX ou do Banco Central Europeu.
 - Seleção de moeda no diálogo de lançamento, com 30 moedas suportadas.
 - Conversão automática pela cotação do dia da compra, via BCB PTAX com
   fallback no Frankfurter. Ambas as fontes são gratuitas e não exigem chave.
-- Campo de cotação editável para quando nenhuma fonte responde ou quando o
-  usuário tem a taxa efetiva da fatura.
+- Cotação e total em reais editáveis — editar um recalcula o outro — para
+  quando nenhuma fonte responde ou quando o usuário tem o valor efetivo da
+  fatura.
 - Indicação da fonte e da data da cotação no lançamento, com aviso de valor
   aproximado sempre que a taxa não vier do próprio banco.
 - Exibição da moeda de origem na tabela de lançamentos e a decomposição
