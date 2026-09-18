@@ -1208,6 +1208,35 @@ export const importCategoryMappings = pgTable(
 	}),
 );
 
+/**
+ * Cache permanente de cotacoes de cambio.
+ *
+ * NAO tem `user_id` de proposito — excecao aprovada a Regra Critica 1 do
+ * AGENTS.md. A cotacao do dolar num dado dia e a mesma para todos os
+ * usuarios: e dado de referencia publico, nao dado pessoal. Particionar por
+ * usuario so multiplicaria chamadas identicas ao BCB.
+ *
+ * Cotacao historica e imutavel, entao este cache nunca invalida.
+ */
+export const exchangeRates = pgTable(
+	"cotacoes_cambio",
+	{
+		currency: text("moeda").notNull(),
+		date: date("data", { mode: "string" }).notNull(),
+		rate: numeric("taxa", { precision: 18, scale: 8 }).notNull(),
+		source: text("fonte").notNull(),
+		rateDate: date("data_cotacao", { mode: "string" }).notNull(),
+		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.currency, table.date] }),
+	}),
+);
+
+export type ExchangeRateRow = typeof exchangeRates.$inferSelect;
+
 export const establishmentLogos = pgTable(
 	"establishment_logos",
 	{
