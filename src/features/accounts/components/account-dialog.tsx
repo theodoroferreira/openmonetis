@@ -32,7 +32,7 @@ import {
 import { AccountFormFields } from "./account-form-fields";
 import type { Account, AccountFormValues } from "./types";
 
-const DEFAULT_ACCOUNT_TYPES = [
+export const DEFAULT_ACCOUNT_TYPES = [
 	"Conta Corrente",
 	"Conta Poupança",
 	"Carteira Digital",
@@ -42,7 +42,7 @@ const DEFAULT_ACCOUNT_TYPES = [
 	"Outros",
 ] as const;
 
-const DEFAULT_ACCOUNT_STATUS = ["Ativa", "Inativa"] as const;
+export const DEFAULT_ACCOUNT_STATUS = ["Ativa", "Inativa"] as const;
 
 interface AccountDialogProps {
 	mode: "create" | "update";

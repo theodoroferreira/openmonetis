@@ -13,8 +13,13 @@ import { useState } from "react";
 import {
 	connectPluggyItemAction,
 	disconnectPluggyItemAction,
+	ignorePluggyAccountAction,
 	refreshPluggyItemAction,
 } from "@/features/open-finance/actions";
+import {
+	LinkAccountDialog,
+	type LinkTargetOption,
+} from "@/features/open-finance/components/link-account-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -63,6 +68,9 @@ interface PluggyItemRow {
 
 interface OpenFinanceTabProps {
 	items: PluggyItemRow[];
+	accountOptions: LinkTargetOption[];
+	cardOptions: LinkTargetOption[];
+	logoOptions: string[];
 }
 
 /** Traduz o status do item do Pluggy para a UI. */
@@ -104,13 +112,38 @@ function maskAccountNumber(number: string | null): string | null {
 	return number.length > 4 ? `••••${visible}` : number;
 }
 
-function AccountListItem({ account }: { account: PluggyDiscoveredAccount }) {
+/** Resolve o nome da conta/cartão já vinculado a uma conta descoberta. */
+function resolveLinkedTargetName(
+	account: PluggyDiscoveredAccount,
+	accountOptions: LinkTargetOption[],
+	cardOptions: LinkTargetOption[],
+): string | null {
+	const options = account.type === "CREDIT" ? cardOptions : accountOptions;
+	const targetId =
+		account.type === "CREDIT" ? account.cardId : account.accountId;
+	if (!targetId) return null;
+	return options.find((option) => option.id === targetId)?.name ?? null;
+}
+
+function AccountListItem({
+	account,
+	linkedTargetName,
+	onLink,
+	onToggle,
+	isToggling,
+}: {
+	account: PluggyDiscoveredAccount;
+	linkedTargetName: string | null;
+	onLink: (id: string) => void;
+	onToggle: (id: string) => void;
+	isToggling: boolean;
+}) {
 	const balance =
 		account.balance !== null ? formatCurrency(Number(account.balance)) : null;
 	const maskedNumber = maskAccountNumber(account.number);
 
 	return (
-		<li className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
+		<li className="flex flex-col gap-2 rounded-md bg-muted/40 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3">
 			<div className="flex min-w-0 items-center gap-2">
 				{account.type === "CREDIT" ? (
 					<RiBankCard2Line className="size-4 shrink-0 text-muted-foreground" />
@@ -123,19 +156,74 @@ function AccountListItem({ account }: { account: PluggyDiscoveredAccount }) {
 						{accountTypeLabel(account.type, account.subtype)}
 						{maskedNumber ? ` · ${maskedNumber}` : ""}
 					</p>
+					{account.statusVinculo === "vinculada" ? (
+						<p className="truncate text-xs text-muted-foreground">
+							Vinculada a{" "}
+							<span className="font-medium text-foreground">
+								{linkedTargetName ?? "—"}
+							</span>
+						</p>
+					) : null}
+					{account.lastSyncError ? (
+						<p className="truncate text-xs text-destructive">
+							{account.lastSyncError}
+						</p>
+					) : null}
 				</div>
 			</div>
-			<span className="shrink-0 font-medium tabular-nums">
-				{balance ?? "—"}
-			</span>
+			<div className="flex shrink-0 items-center gap-3">
+				<span className="font-medium tabular-nums">{balance ?? "—"}</span>
+				{account.statusVinculo === "pendente" ? (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => onLink(account.id)}
+					>
+						Vincular
+					</Button>
+				) : null}
+				{account.statusVinculo === "vinculada" ? (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => onToggle(account.id)}
+						disabled={isToggling}
+					>
+						{isToggling ? "..." : "Desvincular"}
+					</Button>
+				) : null}
+				{account.statusVinculo === "ignorada" ? (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => onToggle(account.id)}
+						disabled={isToggling}
+					>
+						{isToggling ? "..." : "Voltar para pendente"}
+					</Button>
+				) : null}
+			</div>
 		</li>
 	);
 }
 
 function DiscoveredAccountsList({
 	accounts,
+	accountOptions,
+	cardOptions,
+	onLink,
+	onToggle,
+	togglingAccountId,
 }: {
 	accounts: PluggyDiscoveredAccount[];
+	accountOptions: LinkTargetOption[];
+	cardOptions: LinkTargetOption[];
+	onLink: (id: string) => void;
+	onToggle: (id: string) => void;
+	togglingAccountId: string | null;
 }) {
 	if (accounts.length === 0) {
 		return (
@@ -153,36 +241,75 @@ function DiscoveredAccountsList({
 		(account) => account.statusVinculo === "ignorada",
 	);
 
+	const renderItem = (account: PluggyDiscoveredAccount) => (
+		<AccountListItem
+			key={account.id}
+			account={account}
+			linkedTargetName={resolveLinkedTargetName(
+				account,
+				accountOptions,
+				cardOptions,
+			)}
+			onLink={onLink}
+			onToggle={onToggle}
+			isToggling={togglingAccountId === account.id}
+		/>
+	);
+
 	return (
 		<div className="space-y-2">
 			{active.length > 0 ? (
-				<ul className="space-y-1.5">
-					{active.map((account) => (
-						<AccountListItem key={account.id} account={account} />
-					))}
-				</ul>
+				<ul className="space-y-1.5">{active.map(renderItem)}</ul>
 			) : null}
 			{ignored.length > 0 ? (
 				<div className="space-y-1.5 border-t pt-2">
 					<p className="text-xs font-medium text-muted-foreground">Ignoradas</p>
-					<ul className="space-y-1.5 opacity-60">
-						{ignored.map((account) => (
-							<AccountListItem key={account.id} account={account} />
-						))}
-					</ul>
+					<ul className="space-y-1.5 opacity-60">{ignored.map(renderItem)}</ul>
 				</div>
 			) : null}
 		</div>
 	);
 }
 
-export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
+export function OpenFinanceTab({
+	items,
+	accountOptions,
+	cardOptions,
+	logoOptions,
+}: OpenFinanceTabProps) {
 	const [itemId, setItemId] = useState("");
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [removeId, setRemoveId] = useState<string | null>(null);
 	const [isRemoving, setIsRemoving] = useState(false);
 	const [refreshingId, setRefreshingId] = useState<string | null>(null);
+	const [linkAccountId, setLinkAccountId] = useState<string | null>(null);
+	const [togglingAccountId, setTogglingAccountId] = useState<string | null>(
+		null,
+	);
+
+	const linkAccount = linkAccountId
+		? items
+				.flatMap((item) => item.accounts)
+				.find((account) => account.id === linkAccountId)
+		: null;
+
+	const handleToggleAccount = async (id: string) => {
+		setTogglingAccountId(id);
+		setError(null);
+
+		try {
+			const result = await ignorePluggyAccountAction(id);
+
+			if (!result.success) {
+				setError(result.error ?? "Erro ao atualizar a conta");
+			}
+		} catch {
+			setError("Erro ao atualizar a conta");
+		} finally {
+			setTogglingAccountId(null);
+		}
+	};
 
 	const handleConnect = async () => {
 		const trimmed = itemId.trim();
@@ -351,7 +478,14 @@ export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
 									</div>
 								</div>
 								<div className="border-t pt-3">
-									<DiscoveredAccountsList accounts={item.accounts} />
+									<DiscoveredAccountsList
+										accounts={item.accounts}
+										accountOptions={accountOptions}
+										cardOptions={cardOptions}
+										onLink={setLinkAccountId}
+										onToggle={handleToggleAccount}
+										togglingAccountId={togglingAccountId}
+									/>
 								</div>
 							</li>
 						);
@@ -379,6 +513,21 @@ export function OpenFinanceTab({ items }: OpenFinanceTabProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			{linkAccount ? (
+				<LinkAccountDialog
+					pluggyAccount={{
+						id: linkAccount.id,
+						type: linkAccount.type,
+						name: linkAccount.name,
+					}}
+					accountOptions={accountOptions}
+					cardOptions={cardOptions}
+					logoOptions={logoOptions}
+					open={linkAccountId !== null}
+					onOpenChange={(open) => !open && setLinkAccountId(null)}
+				/>
+			) : null}
 		</div>
 	);
 }

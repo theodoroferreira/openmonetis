@@ -40,6 +40,7 @@ export default async function Page() {
 		userApiTokens,
 		pluggyEnabled,
 		pluggyItems,
+		pluggyLinkTargets,
 	} = await fetchSettingsPageData(session.user.id);
 
 	return (
@@ -141,7 +142,12 @@ export default async function Page() {
 									</p>
 								</div>
 								<Separator />
-								<OpenFinanceTab items={pluggyItems} />
+								<OpenFinanceTab
+									items={pluggyItems}
+									accountOptions={pluggyLinkTargets.accounts}
+									cardOptions={pluggyLinkTargets.cards}
+									logoOptions={pluggyLinkTargets.logoOptions}
+								/>
 							</div>
 						</Card>
 					</TabsContent>

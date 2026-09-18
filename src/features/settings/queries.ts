@@ -1,6 +1,9 @@
 import { desc, eq } from "drizzle-orm";
 import { apiTokens } from "@/db/schema";
-import { fetchPluggyItems } from "@/features/open-finance/queries";
+import {
+	fetchLinkTargetOptions,
+	fetchPluggyItems,
+} from "@/features/open-finance/queries";
 import { db, schema } from "@/shared/lib/db";
 import { isPluggyConfigured } from "@/shared/lib/pluggy/client";
 
@@ -73,13 +76,21 @@ async function fetchApiTokens(userId: string): Promise<ApiToken[]> {
 export async function fetchSettingsPageData(userId: string) {
 	const pluggyEnabled = isPluggyConfigured();
 
-	const [authProvider, userPreferences, userApiTokens, userPluggyItems] =
-		await Promise.all([
-			fetchAuthProvider(userId),
-			fetchUserPreferences(userId),
-			fetchApiTokens(userId),
-			pluggyEnabled ? fetchPluggyItems(userId) : Promise.resolve([]),
-		]);
+	const [
+		authProvider,
+		userPreferences,
+		userApiTokens,
+		userPluggyItems,
+		linkTargetOptions,
+	] = await Promise.all([
+		fetchAuthProvider(userId),
+		fetchUserPreferences(userId),
+		fetchApiTokens(userId),
+		pluggyEnabled ? fetchPluggyItems(userId) : Promise.resolve([]),
+		pluggyEnabled
+			? fetchLinkTargetOptions(userId)
+			: Promise.resolve({ accounts: [], cards: [], logoOptions: [] }),
+	]);
 
 	return {
 		authProvider,
@@ -87,5 +98,6 @@ export async function fetchSettingsPageData(userId: string) {
 		userApiTokens,
 		pluggyEnabled,
 		pluggyItems: userPluggyItems,
+		pluggyLinkTargets: linkTargetOptions,
 	};
 }

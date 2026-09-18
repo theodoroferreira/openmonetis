@@ -1,6 +1,7 @@
 import { asc, desc, eq } from "drizzle-orm";
-import { pluggyItems } from "@/db/schema";
+import { cards, financialAccounts, pluggyItems } from "@/db/schema";
 import { db } from "@/shared/lib/db";
+import { loadLogoOptions } from "@/shared/lib/logo/options";
 
 export interface PluggyAccountRow {
 	id: string;
@@ -69,4 +70,40 @@ export async function fetchPluggyItems(
 			lastSyncError: account.lastSyncError,
 		})),
 	}));
+}
+
+export interface LinkTargetOption {
+	id: string;
+	name: string;
+	logo: string | null;
+}
+
+/**
+ * Contas e cartões do usuário, para o seletor de vínculo (existente ou
+ * conta-pai de um cartão novo) e para exibir o nome do destino já vinculado.
+ */
+export async function fetchLinkTargetOptions(userId: string): Promise<{
+	accounts: LinkTargetOption[];
+	cards: LinkTargetOption[];
+	logoOptions: string[];
+}> {
+	const [accountRows, cardRows, logoOptions] = await Promise.all([
+		db
+			.select({
+				id: financialAccounts.id,
+				name: financialAccounts.name,
+				logo: financialAccounts.logo,
+			})
+			.from(financialAccounts)
+			.where(eq(financialAccounts.userId, userId))
+			.orderBy(asc(financialAccounts.name)),
+		db
+			.select({ id: cards.id, name: cards.name, logo: cards.logo })
+			.from(cards)
+			.where(eq(cards.userId, userId))
+			.orderBy(asc(cards.name)),
+		loadLogoOptions(),
+	]);
+
+	return { accounts: accountRows, cards: cardRows, logoOptions };
 }
