@@ -37,6 +37,7 @@ import {
 	createSchema,
 	type DeleteInput,
 	deleteSchema,
+	distributeProportionally,
 	formatPaidInvoicePeriods,
 	getPaidInvoicePeriods,
 	isInitialBalanceTransaction,
@@ -99,6 +100,31 @@ export async function createTransactionAction(
 				: undefined,
 		});
 
+		// `amount` ja chega em BRL do dialogo; `originAmount` e o valor digitado
+		// na moeda estrangeira. Os cinco campos andam juntos ou nao existem.
+		const hasExchange = Boolean(
+			data.originCurrency &&
+				data.exchangeRate &&
+				data.rateSource &&
+				data.rateDate,
+		);
+
+		const originShareCents = hasExchange
+			? distributeProportionally(
+					Math.round(Math.abs(data.originAmount ?? 0) * 100),
+					shares.map((share) => share.amountCents),
+				)
+			: null;
+
+		const exchange = hasExchange
+			? {
+					currency: data.originCurrency as string,
+					rate: data.exchangeRate as number,
+					source: data.rateSource as string,
+					rateDate: data.rateDate as string,
+				}
+			: null;
+
 		const isSeriesLancamento =
 			data.condition === "Parcelado" || data.condition === "Recorrente";
 		const seriesId = isSeriesLancamento ? randomUUID() : null;
@@ -114,6 +140,8 @@ export async function createTransactionAction(
 			shouldNullifySettled,
 			boletoPaymentDate,
 			seriesId,
+			originShareCents,
+			exchange,
 		});
 
 		if (!records.length) {
@@ -275,6 +303,15 @@ export async function updateTransactionAction(
 		const amountSign: 1 | -1 = data.transactionType === "Despesa" ? -1 : 1;
 		const amountCents = Math.round(Math.abs(data.amount) * 100);
 		const normalizedAmount = centsToDecimalString(amountCents * amountSign);
+		const hasExchange = Boolean(
+			data.originCurrency &&
+				data.exchangeRate &&
+				data.rateSource &&
+				data.rateDate,
+		);
+		const originAmountCents = hasExchange
+			? Math.round(Math.abs(data.originAmount ?? 0) * 100)
+			: 0;
 		const normalizedSettled =
 			data.paymentMethod === "Cartão de crédito"
 				? null
@@ -329,6 +366,15 @@ export async function updateTransactionAction(
 				purchaseDate: parseLocalDateString(data.purchaseDate),
 				transactionType: data.transactionType,
 				amount: normalizedAmount,
+				originCurrency: hasExchange ? (data.originCurrency as string) : null,
+				originAmount: hasExchange
+					? centsToDecimalString(originAmountCents * amountSign)
+					: null,
+				exchangeRate: hasExchange
+					? (data.exchangeRate as number).toFixed(8)
+					: null,
+				rateSource: hasExchange ? (data.rateSource as string) : null,
+				rateDate: hasExchange ? (data.rateDate as string) : null,
 				condition: data.condition,
 				paymentMethod: data.paymentMethod,
 				payerId: data.payerId ?? null,
