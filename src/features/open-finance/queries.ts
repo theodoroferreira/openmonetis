@@ -107,3 +107,14 @@ export async function fetchLinkTargetOptions(userId: string): Promise<{
 
 	return { accounts: accountRows, cards: cardRows, logoOptions };
 }
+
+/** Indica se o usuário tem alguma conexão Open Finance cadastrada. */
+export async function hasPluggyItems(userId: string): Promise<boolean> {
+	const rows = await db
+		.select({ id: pluggyItems.id })
+		.from(pluggyItems)
+		.where(eq(pluggyItems.userId, userId))
+		.limit(1);
+
+	return rows.length > 0;
+}
