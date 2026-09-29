@@ -1,6 +1,9 @@
 import { AnimatedThemeToggler } from "@/shared/components/animated-theme-toggler";
 import { NotificationBell } from "@/shared/components/navigation/navbar/notification-bell";
-import { RefreshPageButton } from "@/shared/components/refresh-page-button";
+import {
+	type RefreshAction,
+	RefreshPageButton,
+} from "@/shared/components/refresh-page-button";
 import type { DashboardNotificationsSnapshot } from "@/shared/lib/types/notifications";
 import { checkForUpdate } from "@/shared/lib/version/check-update";
 import type { NavbarFinanceLinks } from "./nav-items";
@@ -19,6 +22,8 @@ type AppNavbarProps = {
 	inboxPendingCount?: number;
 	notificationsSnapshot: DashboardNotificationsSnapshot;
 	financeLinks: NavbarFinanceLinks;
+	/** Executado antes de recarregar a página (ex: sincronizar Open Finance). */
+	onRefresh?: RefreshAction;
 };
 
 export async function AppNavbar({
@@ -27,6 +32,7 @@ export async function AppNavbar({
 	inboxPendingCount = 0,
 	notificationsSnapshot,
 	financeLinks,
+	onRefresh,
 }: AppNavbarProps) {
 	const updateCheck = await checkForUpdate();
 
@@ -41,7 +47,7 @@ export async function AppNavbar({
 					budgetNotifications={notificationsSnapshot.budgetNotifications}
 					inboxPendingCount={inboxPendingCount}
 				/>
-				<RefreshPageButton variant="navbar" />
+				<RefreshPageButton variant="navbar" onRefresh={onRefresh} />
 				<AnimatedThemeToggler variant="navbar" />
 			</div>
 			<NavbarUser

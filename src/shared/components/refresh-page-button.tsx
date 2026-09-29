@@ -4,6 +4,7 @@ import { RiRefreshLine } from "@remixicon/react";
 import type { VariantProps } from "class-variance-authority";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { toast } from "sonner";
 import { buttonVariants } from "@/shared/components/ui/button";
 import {
 	Tooltip,
@@ -12,19 +13,42 @@ import {
 } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/utils/ui";
 
-type RefreshPageButtonProps = React.ComponentPropsWithoutRef<"button"> &
-	Pick<VariantProps<typeof buttonVariants>, "variant">;
+export type RefreshAction = () => Promise<{
+	success: boolean;
+	error?: string;
+}>;
+
+type RefreshPageButtonProps = Omit<
+	React.ComponentPropsWithoutRef<"button">,
+	"onClick"
+> &
+	Pick<VariantProps<typeof buttonVariants>, "variant"> & {
+		/** Executado antes de recarregar os dados da página. */
+		onRefresh?: RefreshAction;
+	};
 
 export function RefreshPageButton({
 	className,
 	variant = "ghost",
+	onRefresh,
 	...props
 }: RefreshPageButtonProps) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 
 	const handleClick = () => {
-		startTransition(() => {
+		startTransition(async () => {
+			if (onRefresh) {
+				try {
+					const result = await onRefresh();
+					if (!result.success && result.error) {
+						toast.error(result.error);
+					}
+				} catch {
+					toast.error("Não foi possível sincronizar agora.");
+				}
+			}
+
 			router.refresh();
 		});
 	};

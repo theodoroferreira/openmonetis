@@ -1,11 +1,14 @@
 import { connection } from "next/server";
 import { fetchDashboardNavbarData } from "@/features/dashboard/lib/navbar-queries";
+import { syncPluggyNowAction } from "@/features/open-finance/actions";
+import { hasPluggyItems } from "@/features/open-finance/queries";
 import { AppNavbar } from "@/shared/components/navigation/navbar/app-navbar";
 import { AppPreferencesProvider } from "@/shared/components/providers/app-preferences-provider";
 import { LogoDevProvider } from "@/shared/components/providers/logo-dev-provider";
 import { PrivacyProvider } from "@/shared/components/providers/privacy-provider";
 import { getUserSession } from "@/shared/lib/auth/server";
 import { isLogoDevEnabled } from "@/shared/lib/logo/server";
+import { isPluggyConfigured } from "@/shared/lib/pluggy/client";
 import { fetchAppPreferences } from "@/shared/lib/preferences/queries";
 
 export default async function DashboardLayout({
@@ -15,9 +18,10 @@ export default async function DashboardLayout({
 }>) {
 	await connection();
 	const session = await getUserSession();
-	const [navbarData, appPreferences] = await Promise.all([
+	const [navbarData, appPreferences, openFinanceConnected] = await Promise.all([
 		fetchDashboardNavbarData(session.user.id),
 		fetchAppPreferences(session.user.id),
+		isPluggyConfigured() ? hasPluggyItems(session.user.id) : false,
 	]);
 	const logoDevEnabled = isLogoDevEnabled();
 
@@ -31,6 +35,7 @@ export default async function DashboardLayout({
 						inboxPendingCount={navbarData.inboxPendingCount}
 						notificationsSnapshot={navbarData.notificationsSnapshot}
 						financeLinks={navbarData.financeLinks}
+						onRefresh={openFinanceConnected ? syncPluggyNowAction : undefined}
 					/>
 					<div className="relative flex flex-1 flex-col pt-16">
 						<div className="@container/main flex flex-1 flex-col gap-2">
