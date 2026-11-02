@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { Resend } from "resend";
 import { payers } from "@/db/schema";
+import { getActor } from "@/shared/lib/auth/actor";
 import { db } from "@/shared/lib/db";
 import { getResendFromEmail } from "@/shared/lib/email/resend";
 import { formatCurrency } from "@/shared/utils/currency";
@@ -118,6 +119,12 @@ export async function sendPayerAutoEmails({
 	"use server";
 
 	if (entriesByPayer.size === 0) {
+		return;
+	}
+
+	// Lançamento feito pelo bot não dispara e-mail: envio de resumo continua
+	// sendo uma ação explícita.
+	if (getActor()?.kind === "mcp") {
 		return;
 	}
 

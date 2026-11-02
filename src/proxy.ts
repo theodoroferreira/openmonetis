@@ -80,6 +80,11 @@ export default async function proxy(request: NextRequest) {
 		return NextResponse.next();
 	}
 
+	// /api/mcp autentica por token próprio: buscar sessão aqui seria desperdício.
+	if (pathname === "/api/mcp") {
+		return NextResponse.next();
+	}
+
 	// Validate actual session, not just cookie existence
 	const session = await auth.api.getSession({
 		headers: request.headers,

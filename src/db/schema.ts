@@ -470,6 +470,10 @@ export const apiTokens = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(), // Ex: "Meu Samsung Galaxy"
+		/** O que o token alcança: `companion` (rotas atuais) ou `mcp` (/api/mcp). */
+		scope: text("scope", { enum: ["companion", "mcp"] })
+			.notNull()
+			.default("companion"),
 		tokenHash: text("token_hash").notNull(), // SHA-256 do token
 		tokenPrefix: text("token_prefix").notNull(), // Primeiros 8 chars (display)
 		lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
@@ -482,6 +486,39 @@ export const apiTokens = pgTable(
 	},
 	(table) => ({
 		tokenHashIdx: uniqueIndex("tokens_api_token_hash_idx").on(table.tokenHash),
+	}),
+);
+
+/**
+ * Trilha de auditoria do servidor MCP: uma linha por chamada de ferramenta de
+ * escrita. `snapshot` guarda o estado anterior nas exclusões, para permitir
+ * reconstruir manualmente o que o bot apagou.
+ */
+export const mcpAuditLog = pgTable(
+	"mcp_audit_log",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		tokenId: uuid("token_id").references(() => apiTokens.id, {
+			onDelete: "set null",
+		}),
+		tool: text("tool").notNull(),
+		arguments: jsonb("arguments"),
+		result: text("result", { enum: ["success", "error", "dry_run"] }).notNull(),
+		message: text("message"),
+		affectedIds: jsonb("affected_ids").$type<string[]>(),
+		snapshot: jsonb("snapshot"),
+		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		userIdCreatedAtIdx: index("mcp_audit_log_user_id_created_at_idx").on(
+			table.userId,
+			table.createdAt,
+		),
 	}),
 );
 

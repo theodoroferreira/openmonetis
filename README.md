@@ -10,7 +10,7 @@
 
 > **Não há versão online hospedada.** Você precisa clonar o repositório e rodar localmente ou no seu próprio servidor.
 
-[![Version](https://img.shields.io/badge/version-2.11.0-blue?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.12.0-blue?style=flat-square)](CHANGELOG.md)
 [![Next.js](https://img.shields.io/badge/Next.js-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
@@ -90,6 +90,8 @@ A ideia é simples: ter um lugar onde consigo ver todas as minhas contas, cartõ
 </p>
 
 ⚙️ **Personalização** — Tema dark/light, modo privacidade, ordem das colunas, agrupamento por data em lançamentos, exibição de anotações, tamanho máximo de anexos, resumo opcional no modal de lançamento e changelog visual para acompanhar as novidades do app.
+
+🤖 **Servidor MCP** — Conecte um assistente, como o Grok Bot, para gerenciar suas finanças e fazer os lançamentos diários imitando suas decisões. Pagamento de fatura nunca vira despesa, exclusões em cascata exigem confirmação e toda escrita fica auditada em Ajustes > Automação. Veja o [guia](docs/mcp-grok-bot.md).
 
 ### Stack técnica
 

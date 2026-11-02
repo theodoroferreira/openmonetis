@@ -5,6 +5,44 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.12.0] - 2026-11-02
+
+Esta versão abre o OpenMonetis para assistentes de IA. Até aqui cada item da
+inbox dependia de revisão manual, e nada do app podia ser feito fora do
+navegador. Agora um servidor MCP permite que um assistente, como o Grok Bot,
+gerencie as finanças e faça os lançamentos diários a partir das decisões dos
+últimos meses. As regras críticas ficam no servidor, não no modelo: pagamento de
+fatura nunca vira despesa, e toda escrita fica registrada e pode ser conferida.
+
+### Adicionado
+
+- Servidor MCP em `/api/mcp`, com Streamable HTTP sem estado e limite de 120
+  requisições por minuto por token.
+- 73 ferramentas para lançamentos, inbox, faturas, contas, cartões, categorias,
+  orçamentos, pessoas, anotações, calendário, dashboard, insights e Open Finance.
+- `approve_inbox_items`, que aprova itens no servidor com resultado por item e
+  modo `dry_run`, inclusive para teste retroativo em itens já decididos.
+- `settle_invoice_payment_items`, que descarta os itens de pagamento de fatura e
+  paga a fatura somente quando o valor bate com o total calculado no servidor.
+- `get_decision_history`, que resume as decisões recentes por descrição.
+- `undo_inbox_approval`, que desfaz uma aprovação do bot.
+- Aba **Automação** em Ajustes, com tokens próprios, atividade recente e botão de
+  desfazer aprovação.
+- Escopo em tokens de API (`companion` ou `mcp`) e trilha de auditoria em
+  `mcp_audit_log`.
+- Guia em `docs/mcp-grok-bot.md`.
+
+### Alterado
+
+- Lançamentos feitos pelo bot não disparam e-mail automático para pessoas.
+- A aba Companion passa a listar apenas tokens do Companion.
+
+### Corrigido
+
+- `cleanupAttachmentsAfterTransactionDelete` saiu de um arquivo `"use server"`.
+  Ela apagava anexos por IDs recebidos, sem checar autenticação, e ficava
+  exposta como Server Action.
+
 ## [2.11.0] - 2026-11-02
 
 Esta versão faz a tela de Insights refletir o que a instalação realmente tem

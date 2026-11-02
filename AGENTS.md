@@ -51,6 +51,10 @@ Se um contrato cruza dominios, ele deve morar em `src/shared/`.
 
 `src/features/attachments` importa `TransactionDialog`, `TransactionDetailsDialog` e `TransactionItem` diretamente de `src/features/transactions`. Isso e uma dependencia explicita e aceita: anexos sao semanticamente uma extensao de lancamentos — existem por causa deles e nao fazem sentido sem esse contexto. Mover esses componentes para `shared/` seria errado (eles pertencem a transactions). Nao tratar isso como bug a corrigir.
 
+**Excecao intencional: `mcp` depende das outras features**
+
+`src/features/mcp` e so um adaptador: expoe por ferramentas as actions e queries das outras features, sem reescrever regra de negocio. Faz sentido importar delas diretamente. Nao tratar isso como bug a corrigir. A dependencia e de mao unica: nenhuma feature importa `mcp`, exceto a pagina de Ajustes, que monta a aba Automacao.
+
 Exemplos comuns:
 
 - auth: `src/shared/lib/auth/*`
@@ -116,6 +120,7 @@ src/
 │   ├── inbox/
 │   ├── attachments/
 │   ├── reports/
+│   ├── mcp/                       # adaptador: tools/ por dominio sobre as outras features
 │   └── settings/
 ├── shared/
 │   ├── components/
@@ -299,6 +304,9 @@ Arquivo: `src/shared/lib/actions/helpers.ts`
 
 - `getUser()` / `getUserId()` em `src/shared/lib/auth/server.ts`
 - sessao deduplicada por request com `React.cache()`
+- **Ator:** `getUser()`, `getUserId()`, `getUserSession()` e `getOptionalUserSession()` consultam `getActor()` antes da sessao, em um unico ponto. Assim as Server Actions rodam sem navegador com as mesmas validacoes. `runAsActor()` so pode ser chamado pela rota `/api/mcp`, depois de validar o token, e `actor.ts` nunca pode virar `"use server"`.
+- Quem roda como ator so enxerga `id`, `name` e `email` do usuario. Actions de conta e seguranca em `src/features/settings/actions.ts` leem a sessao direto de `auth.api` e nao podem ser expostas no MCP.
+- **Tokens de API:** `tokens_api.scope` e `companion` (padrao) ou `mcp`. `authenticateApiToken(request, scope)` valida token e escopo. A rota `/api/mcp` aceita somente tokens `mcp`.
 
 ---
 
@@ -318,6 +326,18 @@ export async function fetchData(userId: string, period: string) {
   });
 }
 ```
+
+---
+
+## Servidor MCP
+
+- Rota `src/app/api/mcp/route.ts`; ferramentas em `src/features/mcp/tools/`, registradas em `src/features/mcp/server.ts`. Guia em `docs/mcp-grok-bot.md`.
+- Toda ferramenta nasce com `defineTool()`, que roda dentro do ator, audita escritas e nunca devolve detalhes de erro.
+- Ferramenta de edicao recebe so o que muda e completa com a linha atual: as actions gravam `campo ?? null` porque o formulario sempre manda tudo.
+- Exclusao em cascata exige `confirm` com o nome exato e snapshot na auditoria.
+- Transferencia sao dois lancamentos ligados por `transfer_id`: ferramenta que exclui passa por `expandTransferLegs()`, para nunca apagar uma perna so.
+- Leitura usa consultas sem `"use cache"`, para enxergar a escrita mais recente.
+- Nao expor `createMassTransactionsAction`, que pula as validacoes de fatura paga e limite. Em `adjustInvoiceAction` e `adjustAccountBalanceAction`, calcular os totais no servidor.
 
 ---
 
@@ -358,7 +378,7 @@ Usar Drizzle ORM (parametrizado por padrao) — nunca concatenar input de usuari
 CSP definida em `src/proxy.ts` via middleware — alterar la, nao em `next.config.ts`. Headers de seguranca (HSTS, X-Frame-Options, etc.) definidos em `next.config.ts`. Nao remover nem enfraquecer essas configuracoes.
 
 ### Rate Limiting
-Login: 5 tentativas/min. Signup: 3 tentativas/min. API tokens: 100 req/min (inbox), 20 req/min (batch). Configurado em `src/shared/lib/auth/config.ts` e nas rotas de inbox. Nao remover.
+Login: 5 tentativas/min. Signup: 3 tentativas/min. API tokens: 100 req/min (inbox), 20 req/min (batch), 120 req/min (MCP). Configurado em `src/shared/lib/auth/config.ts`, nas rotas de inbox e em `src/app/api/mcp/route.ts`. Nao remover.
 
 ### Tratamento de Erros
 Erros nao devem expor stack traces, paths ou nomes de bibliotecas ao cliente. Usar mensagens genericas: `"Algo deu errado"`. Logar detalhes apenas no servidor com `console.error()`.

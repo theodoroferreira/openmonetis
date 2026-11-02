@@ -51,11 +51,56 @@ interface ApiToken {
 	revokedAt: Date | null;
 }
 
+type ApiTokenScope = "companion" | "mcp";
+
 interface ApiTokensFormProps {
 	tokens: ApiToken[];
+	scope?: ApiTokenScope;
 }
 
-export function ApiTokensForm({ tokens }: ApiTokensFormProps) {
+const COPY: Record<
+	ApiTokenScope,
+	{
+		title: string;
+		description: string;
+		createDescription: string;
+		nameLabel: string;
+		namePlaceholder: string;
+		empty: string;
+		revokeDescription: string;
+	}
+> = {
+	companion: {
+		title: "Dispositivos conectados",
+		description:
+			"Gerencie os dispositivos que podem enviar notificações para o OpenMonetis.",
+		createDescription:
+			"Crie um token para conectar o OpenMonetis Companion no seu dispositivo Android.",
+		nameLabel: "Nome do dispositivo",
+		namePlaceholder: "Ex: Meu Celular, Galaxy S24...",
+		empty: "Nenhum dispositivo conectado. Crie um token para começar.",
+		revokeDescription:
+			"O dispositivo associado a este token será desconectado e não poderá mais enviar notificações. Esta ação não pode ser desfeita.",
+	},
+	mcp: {
+		title: "Tokens do MCP",
+		description:
+			"Estes tokens dão acesso às suas finanças pelo servidor MCP, inclusive para excluir dados.",
+		createDescription:
+			"Crie um token para conectar um cliente MCP, como o Grok Bot.",
+		nameLabel: "Nome do cliente",
+		namePlaceholder: "Ex: Grok Bot",
+		empty: "Nenhum cliente conectado. Crie um token para começar.",
+		revokeDescription:
+			"O cliente que usa este token perde o acesso na hora. Esta ação não pode ser desfeita.",
+	},
+};
+
+export function ApiTokensForm({
+	tokens,
+	scope = "companion",
+}: ApiTokensFormProps) {
+	const copy = COPY[scope];
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [tokenName, setTokenName] = useState("");
 	const [isCreating, setIsCreating] = useState(false);
@@ -74,7 +119,10 @@ export function ApiTokensForm({ tokens }: ApiTokensFormProps) {
 		setError(null);
 
 		try {
-			const result = await createApiTokenAction({ name: tokenName.trim() });
+			const result = await createApiTokenAction({
+				name: tokenName.trim(),
+				scope,
+			});
 
 			if (result.success && result.data?.token) {
 				setNewToken(result.data.token);
@@ -139,11 +187,8 @@ export function ApiTokensForm({ tokens }: ApiTokensFormProps) {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div>
-					<h3 className="font-semibold">Dispositivos conectados</h3>
-					<p className="text-sm text-muted-foreground">
-						Gerencie os dispositivos que podem enviar notificações para o
-						OpenMonetis.
-					</p>
+					<h3 className="font-semibold">{copy.title}</h3>
+					<p className="text-sm text-muted-foreground">{copy.description}</p>
 				</div>
 				<Dialog
 					open={isCreateOpen}
@@ -164,16 +209,15 @@ export function ApiTokensForm({ tokens }: ApiTokensFormProps) {
 								<DialogHeader>
 									<DialogTitle>Criar Token de API</DialogTitle>
 									<DialogDescription>
-										Crie um token para conectar o OpenMonetis Companion no seu
-										dispositivo Android.
+										{copy.createDescription}
 									</DialogDescription>
 								</DialogHeader>
 								<div className="space-y-4 py-4">
 									<div className="space-y-2">
-										<Label htmlFor="tokenName">Nome do dispositivo</Label>
+										<Label htmlFor="tokenName">{copy.nameLabel}</Label>
 										<Input
 											id="tokenName"
-											placeholder="Ex: Meu Celular, Galaxy S24..."
+											placeholder={copy.namePlaceholder}
 											value={tokenName}
 											onChange={(e) => setTokenName(e.target.value)}
 											onKeyDown={(e) => {
@@ -255,9 +299,7 @@ export function ApiTokensForm({ tokens }: ApiTokensFormProps) {
 			{activeTokens.length === 0 ? (
 				<div className="flex items-center gap-3 py-4 text-muted-foreground">
 					<RiSmartphoneLine className="h-5 w-5" />
-					<p className="text-sm">
-						Nenhum dispositivo conectado. Crie um token para começar.
-					</p>
+					<p className="text-sm">{copy.empty}</p>
 				</div>
 			) : (
 				<div className="divide-y py-2">
@@ -321,8 +363,7 @@ export function ApiTokensForm({ tokens }: ApiTokensFormProps) {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Revogar token?</AlertDialogTitle>
 						<AlertDialogDescription>
-							O dispositivo associado a este token será desconectado e não
-							poderá mais enviar notificações. Esta ação não pode ser desfeita.
+							{copy.revokeDescription}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
