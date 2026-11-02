@@ -40,9 +40,10 @@ export const PROVIDERS = {
 } as const;
 
 /**
- * Lista de modelos de IA disponíveis para análise de insights
+ * Modelos usados quando a listagem do provedor falha. Em condições normais a
+ * lista vem da API de cada provedor (ver `lib/fetch-provider-models.ts`).
  */
-export const AVAILABLE_MODELS = [
+export const FALLBACK_MODELS = [
 	// OpenAI
 	{ id: "gpt-5.5-pro", name: "GPT-5.5 Pro", provider: "openai" as const },
 	{ id: "gpt-5.5", name: "GPT-5.5", provider: "openai" as const },
@@ -129,7 +130,6 @@ export const AVAILABLE_MODELS = [
 ] as const;
 
 export const DEFAULT_MODEL = "gpt-5.5";
-export const DEFAULT_PROVIDER = "openai";
 
 /**
  * System prompt para análise de insights

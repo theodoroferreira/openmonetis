@@ -1,5 +1,6 @@
-import { RiCheckLine } from "@remixicon/react";
+import { RiCheckLine, RiKey2Line } from "@remixicon/react";
 import { type AIProvider, PROVIDERS } from "@/features/insights/constants";
+import { EmptyState } from "@/shared/components/feedback/empty-state";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { cn } from "@/shared/utils/ui";
 import { ProviderIcon } from "./provider-icon";
@@ -26,12 +27,28 @@ const PROVIDER_DETAILS: Record<AIProvider, { description: string }> = {
 };
 
 interface ProviderSelectionCardProps {
+	providers: AIProvider[];
 	currentProvider: AIProvider;
 	disabled?: boolean;
 	onProviderChange: (provider: AIProvider) => void;
 }
 
+export function NoProviderConfiguredCard() {
+	return (
+		<Card className="border-border/70 bg-card/95 shadow-sm">
+			<CardContent className="flex justify-center">
+				<EmptyState
+					media={<RiKey2Line className="size-6 text-primary" />}
+					title="Nenhum provedor de IA configurado"
+					description="Defina a chave de pelo menos um provedor no arquivo .env e reinicie o app. Só os provedores configurados aparecem aqui."
+				/>
+			</CardContent>
+		</Card>
+	);
+}
+
 export function ProviderSelectionCard({
+	providers,
 	currentProvider,
 	disabled,
 	onProviderChange,
@@ -59,7 +76,7 @@ export function ProviderSelectionCard({
 					</div>
 
 					<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-						{(Object.keys(PROVIDERS) as AIProvider[]).map((providerId) => {
+						{providers.map((providerId) => {
 							const provider = PROVIDERS[providerId];
 							const details = PROVIDER_DETAILS[providerId];
 							const isSelected = currentProvider === providerId;

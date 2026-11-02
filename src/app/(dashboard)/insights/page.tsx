@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { InsightsPage } from "@/features/insights/components/insights-page";
+import { fetchInsightsProviders } from "@/features/insights/queries";
 import { ContentErrorBoundary } from "@/shared/components/feedback/content-error-boundary";
 import MonthNavigation from "@/shared/components/month-picker/month-navigation";
 import { parsePeriodParam } from "@/shared/utils/period";
@@ -35,11 +36,12 @@ async function InsightsContent({ searchParams }: PageProps) {
 	const resolvedSearchParams = searchParams ? await searchParams : undefined;
 	const periodoParam = getSingleParam(resolvedSearchParams, "periodo");
 	const { period: selectedPeriod } = parsePeriodParam(periodoParam);
+	const providers = await fetchInsightsProviders();
 
 	return (
 		<main className="flex flex-col gap-6">
 			<MonthNavigation />
-			<InsightsPage period={selectedPeriod} />
+			<InsightsPage period={selectedPeriod} providers={providers} />
 		</main>
 	);
 }

@@ -37,7 +37,7 @@ export async function generateInsightsAction(
 			};
 		}
 
-		const resolvedModel = resolveInsightsModel(modelId);
+		const resolvedModel = await resolveInsightsModel(modelId);
 		if (!resolvedModel.success) {
 			return resolvedModel;
 		}

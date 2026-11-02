@@ -19,11 +19,14 @@ import {
 	generateInsightsAction,
 	saveInsightsAction,
 } from "@/features/insights/actions";
-import { DEFAULT_MODEL } from "@/features/insights/constants";
 import {
 	savedInsightsQueryKey,
 	useSavedInsights,
 } from "@/features/insights/hooks/use-saved-insights";
+import {
+	type InsightsProviderOption,
+	resolveInitialModel,
+} from "@/features/insights/lib/provider-models";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -33,10 +36,15 @@ import { ModelSelector } from "./model-selector";
 
 interface InsightsPageProps {
 	period: string;
+	providers: InsightsProviderOption[];
 	onAnalyze?: () => void;
 }
 
-export function InsightsPage({ period, onAnalyze }: InsightsPageProps) {
+export function InsightsPage({
+	period,
+	providers,
+	onAnalyze,
+}: InsightsPageProps) {
 	const queryClient = useQueryClient();
 	const savedInsightsQuery = useSavedInsights(period);
 	const [isPending, startTransition] = useTransition();
@@ -54,7 +62,9 @@ export function InsightsPage({ period, onAnalyze }: InsightsPageProps) {
 	const savedInsights = savedInsightsQuery.data ?? null;
 	const insights = draftInsights ?? savedInsights?.insights ?? null;
 	const selectedModel =
-		selectedModelOverride ?? savedInsights?.modelId ?? DEFAULT_MODEL;
+		selectedModelOverride ??
+		resolveInitialModel(savedInsights?.modelId, providers) ??
+		"";
 	const isSaved = draftInsights === null && savedInsights !== null;
 	const savedDate = isSaved ? (savedInsights?.createdAt ?? null) : null;
 	const isLoadingSavedInsights =
@@ -175,6 +185,7 @@ export function InsightsPage({ period, onAnalyze }: InsightsPageProps) {
 	return (
 		<div className="flex flex-col gap-6">
 			<ModelSelector
+				providers={providers}
 				value={selectedModel}
 				onValueChange={setSelectedModelOverride}
 				period={period}

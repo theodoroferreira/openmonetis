@@ -1,28 +1,42 @@
-import { RiExternalLinkLine, RiSparklingLine } from "@remixicon/react";
+"use client";
+
+import {
+	RiAlertLine,
+	RiCheckLine,
+	RiExpandUpDownLine,
+	RiExternalLinkLine,
+	RiSparklingLine,
+} from "@remixicon/react";
 import Link from "next/link";
-import type {
-	AIProvider,
-	AVAILABLE_MODELS,
-} from "@/features/insights/constants";
+import { useState } from "react";
+import type { AIProvider } from "@/features/insights/constants";
+import type { InsightsModel } from "@/features/insights/lib/provider-models";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/shared/components/ui/command";
 import { Input } from "@/shared/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/shared/components/ui/select";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/shared/components/ui/popover";
 
 interface ModelSelectionCardProps {
 	currentProvider: AIProvider;
-	providerModels: Array<(typeof AVAILABLE_MODELS)[number]>;
+	providerModels: InsightsModel[];
 	selectValue: string;
 	customModel: string;
 	isCustomModelActive: boolean;
 	canUseCustomModel: boolean;
 	canAnalyze: boolean;
+	listFailed: boolean;
 	disabled?: boolean;
 	onModelSelect: (modelId: string) => void;
 	onCustomModelChange: (modelName: string) => void;
@@ -32,6 +46,8 @@ interface ModelSelectionCardProps {
 
 export const CUSTOM_MODEL_VALUE = "custom";
 
+const CUSTOM_MODEL_LABEL = "Modelo customizado";
+
 export function ModelSelectionCard({
 	currentProvider,
 	providerModels,
@@ -40,12 +56,24 @@ export function ModelSelectionCard({
 	isCustomModelActive,
 	canUseCustomModel,
 	canAnalyze,
+	listFailed,
 	disabled,
 	onModelSelect,
 	onCustomModelChange,
 	onCancel,
 	onAnalyze,
 }: ModelSelectionCardProps) {
+	const [open, setOpen] = useState(false);
+
+	const selectedLabel =
+		providerModels.find((model) => model.id === selectValue)?.name ??
+		(canUseCustomModel ? CUSTOM_MODEL_LABEL : "Selecione um modelo");
+
+	const handleSelect = (modelId: string) => {
+		onModelSelect(modelId);
+		setOpen(false);
+	};
+
 	return (
 		<Card className="border-border/70 bg-card/95 shadow-sm">
 			<CardContent className="space-y-6">
@@ -60,50 +88,76 @@ export function ModelSelectionCard({
 					<div className="flex flex-col gap-2 lg:flex-row lg:items-center">
 						<div className="flex min-w-0 flex-col gap-2 lg:flex-row">
 							<div className="w-full lg:w-72">
-								{currentProvider === "openrouter" ? (
-									<Input
-										value={customModel}
-										onChange={(event) =>
-											onCustomModelChange(event.target.value)
-										}
-										placeholder="anthropic/claude-opus-4.8-fast"
-										disabled={disabled}
-										className="h-9 w-full border-border/70 bg-background"
-									/>
-								) : (
-									<Select
-										value={selectValue}
-										onValueChange={onModelSelect}
-										disabled={disabled}
+								<Popover open={open} onOpenChange={setOpen}>
+									<PopoverTrigger asChild>
+										<Button
+											variant="outline"
+											role="combobox"
+											aria-expanded={open}
+											aria-label="Selecionar modelo"
+											disabled={disabled}
+											className="h-9 w-full justify-between border-border/70 bg-background font-normal"
+										>
+											<span className="truncate">{selectedLabel}</span>
+											<RiExpandUpDownLine
+												className="ml-2 size-4 shrink-0 opacity-50"
+												aria-hidden="true"
+											/>
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										className="w-(--radix-popover-trigger-width) p-0"
+										align="start"
 									>
-										<SelectTrigger className="h-9 w-full border-border/70 bg-background">
-											<SelectValue placeholder="Selecione um modelo" />
-										</SelectTrigger>
-										<SelectContent>
-											{providerModels.map((model) => (
-												<SelectItem key={model.id} value={model.id}>
-													{model.name}
-													{model.id === "gpt-5.5" ? " (Recomendado)" : ""}
-												</SelectItem>
-											))}
-											{canUseCustomModel && (
-												<SelectItem value={CUSTOM_MODEL_VALUE}>
-													Modelo customizado
-												</SelectItem>
-											)}
-										</SelectContent>
-									</Select>
-								)}
+										<Command>
+											<CommandInput placeholder="Buscar modelo..." />
+											<CommandList>
+												<CommandEmpty>Nenhum modelo encontrado.</CommandEmpty>
+												<CommandGroup>
+													{providerModels.map((model) => (
+														<CommandItem
+															key={model.id}
+															value={`${model.name} ${model.id}`}
+															onSelect={() => handleSelect(model.id)}
+															className="cursor-pointer"
+														>
+															<span className="truncate">{model.name}</span>
+															{model.id === selectValue && (
+																<RiCheckLine
+																	className="ml-auto size-4"
+																	aria-hidden="true"
+																/>
+															)}
+														</CommandItem>
+													))}
+													{canUseCustomModel && (
+														<CommandItem
+															value={CUSTOM_MODEL_LABEL}
+															onSelect={() => handleSelect(CUSTOM_MODEL_VALUE)}
+															className="cursor-pointer"
+														>
+															{CUSTOM_MODEL_LABEL}
+														</CommandItem>
+													)}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</PopoverContent>
+								</Popover>
 							</div>
 
-							{isCustomModelActive && currentProvider === "ollama" && (
+							{isCustomModelActive && (
 								<div className="w-full lg:w-72">
 									<Input
 										value={customModel}
 										onChange={(event) =>
 											onCustomModelChange(event.target.value)
 										}
-										placeholder="Ex: llama3.2"
+										placeholder={
+											currentProvider === "openrouter"
+												? "Ex: anthropic/claude-opus-4.8-fast"
+												: "Ex: llama3.2"
+										}
 										disabled={disabled}
 										className="h-9 w-full border-border/70 bg-background"
 									/>
@@ -132,6 +186,15 @@ export function ModelSelectionCard({
 							)}
 						</div>
 					</div>
+
+					{listFailed && (
+						<p className="flex items-center gap-1.5 text-warning text-xs">
+							<RiAlertLine className="size-3 shrink-0" aria-hidden="true" />
+							{providerModels.length > 0
+								? "Não foi possível atualizar a lista de modelos. Exibindo a lista padrão."
+								: "Não foi possível carregar a lista de modelos. Informe o modelo manualmente."}
+						</p>
+					)}
 				</div>
 
 				<div className="flex items-center justify-between gap-3">

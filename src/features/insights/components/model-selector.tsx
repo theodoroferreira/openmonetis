@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { AIProvider } from "@/features/insights/constants";
 import {
-	type AIProvider,
-	AVAILABLE_MODELS,
-	DEFAULT_PROVIDER,
-} from "@/features/insights/constants";
+	type InsightsModel,
+	type InsightsProviderOption,
+	inferProviderFromModelId,
+	isCustomModelProvider,
+	stripCustomProviderPrefix,
+} from "@/features/insights/lib/provider-models";
 import { AnalysisSummaryCard } from "./analysis-summary-card";
 import { CUSTOM_MODEL_VALUE, ModelSelectionCard } from "./model-selection-card";
-import { ProviderSelectionCard } from "./provider-selection-card";
+import {
+	NoProviderConfiguredCard,
+	ProviderSelectionCard,
+} from "./provider-selection-card";
 
 interface ModelSelectorProps {
+	providers: InsightsProviderOption[];
 	value: string;
 	onValueChange: (value: string) => void;
 	period: string;
@@ -22,51 +29,13 @@ interface ModelSelectorProps {
 	isLoadingSavedInsights?: boolean;
 }
 
-const CUSTOM_MODEL_PROVIDERS = ["openrouter", "ollama"] as const;
-
-function isCustomModelProvider(
-	provider: AIProvider,
-): provider is (typeof CUSTOM_MODEL_PROVIDERS)[number] {
-	return CUSTOM_MODEL_PROVIDERS.includes(
-		provider as (typeof CUSTOM_MODEL_PROVIDERS)[number],
-	);
-}
-
-function getProviderFromValue(value: string): AIProvider | null {
-	if (value.startsWith("openrouter:")) {
-		return "openrouter";
-	}
-
-	if (value.startsWith("ollama:")) {
-		return "ollama";
-	}
-
-	if (value.includes("/")) {
-		return "openrouter";
-	}
-
-	return AVAILABLE_MODELS.find((model) => model.id === value)?.provider ?? null;
-}
-
-function stripCustomProviderPrefix(value: string, provider: AIProvider) {
-	if (!isCustomModelProvider(provider)) {
-		return value;
-	}
-
-	return value.startsWith(`${provider}:`)
-		? value.slice(`${provider}:`.length)
-		: value;
-}
-
-function getModelLabel(modelId: string) {
-	const model = AVAILABLE_MODELS.find((item) => item.id === modelId);
-	if (model) return model.name;
-
-	const provider = getProviderFromValue(modelId);
-	return provider ? stripCustomProviderPrefix(modelId, provider) : modelId;
+function getCustomModelName(value: string) {
+	const provider = inferProviderFromModelId(value);
+	return provider ? stripCustomProviderPrefix(value, provider) : value;
 }
 
 export function ModelSelector({
+	providers,
 	value,
 	onValueChange,
 	period,
@@ -77,71 +46,50 @@ export function ModelSelector({
 	disabled,
 	isLoadingSavedInsights,
 }: ModelSelectorProps) {
-	const [customModel, setCustomModel] = useState(value);
+	const [customModel, setCustomModel] = useState(() =>
+		getCustomModelName(value),
+	);
 
 	useEffect(() => {
-		const detectedProvider = getProviderFromValue(value);
-		if (detectedProvider && isCustomModelProvider(detectedProvider)) {
-			setCustomModel(stripCustomProviderPrefix(value, detectedProvider));
-			return;
-		}
-
-		setCustomModel(value);
+		setCustomModel(getCustomModelName(value));
 	}, [value]);
 
-	const currentProvider = getProviderFromValue(value) ?? DEFAULT_PROVIDER;
+	const allModels = useMemo(
+		() => providers.flatMap((option) => option.models),
+		[providers],
+	);
 
-	const modelsByProvider = useMemo(() => {
-		const grouped: Record<
-			AIProvider,
-			Array<(typeof AVAILABLE_MODELS)[number]>
-		> = {
-			openai: [],
-			anthropic: [],
-			google: [],
-			minimax: [],
-			openrouter: [],
-			ollama: [],
-		};
+	const inferredProvider = inferProviderFromModelId(value);
+	const currentOption =
+		providers.find((option) => option.provider === inferredProvider) ??
+		providers[0];
 
-		AVAILABLE_MODELS.forEach((model) => {
-			grouped[model.provider].push(model);
-		});
+	if (!currentOption) {
+		return <NoProviderConfiguredCard />;
+	}
 
-		return grouped;
-	}, []);
-
-	const providerModels = modelsByProvider[currentProvider];
+	const currentProvider = currentOption.provider;
+	const providerModels: InsightsModel[] = currentOption.models;
 	const selectedModelIsKnown = providerModels.some(
 		(model) => model.id === value,
 	);
 	const selectValue = selectedModelIsKnown ? value : CUSTOM_MODEL_VALUE;
 	const isCustomModelActive =
 		isCustomModelProvider(currentProvider) && !selectedModelIsKnown;
-	const selectedModelLabel = getModelLabel(value);
+	const selectedModelLabel =
+		allModels.find((model) => model.id === value)?.name ??
+		getCustomModelName(value);
 	const canAnalyze =
 		!disabled &&
 		!isLoadingSavedInsights &&
 		selectedModelLabel.trim().length > 0;
 
 	const handleProviderChange = (newProvider: AIProvider) => {
-		if (newProvider === "openrouter") {
-			setCustomModel("");
-			onValueChange("openrouter:");
-			return;
-		}
+		const firstModel = providers.find(
+			(option) => option.provider === newProvider,
+		)?.models[0];
 
-		const firstModel = modelsByProvider[newProvider][0];
-		if (firstModel) {
-			onValueChange(firstModel.id);
-			return;
-		}
-
-		if (isCustomModelProvider(newProvider)) {
-			onValueChange(
-				customModel ? `${newProvider}:${customModel}` : `${newProvider}:`,
-			);
-		}
+		onValueChange(firstModel ? firstModel.id : `${newProvider}:`);
 	};
 
 	const handleModelSelect = (modelId: string) => {
@@ -164,6 +112,7 @@ export function ModelSelector({
 			<div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
 				<div className="space-y-4">
 					<ProviderSelectionCard
+						providers={providers.map((option) => option.provider)}
 						currentProvider={currentProvider}
 						disabled={disabled}
 						onProviderChange={handleProviderChange}
@@ -177,6 +126,7 @@ export function ModelSelector({
 						isCustomModelActive={isCustomModelActive}
 						canUseCustomModel={isCustomModelProvider(currentProvider)}
 						canAnalyze={canAnalyze}
+						listFailed={currentOption.listFailed}
 						disabled={disabled}
 						onModelSelect={handleModelSelect}
 						onCustomModelChange={handleCustomModelChange}

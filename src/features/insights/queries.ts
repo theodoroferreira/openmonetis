@@ -6,6 +6,39 @@ import {
 	type InsightsResponse,
 	InsightsResponseSchema,
 } from "@/shared/lib/schemas/insights";
+import { FALLBACK_MODELS } from "./constants";
+import { fetchProviderModels } from "./lib/fetch-provider-models";
+import {
+	getConfiguredProviders,
+	type InsightsProviderOption,
+} from "./lib/provider-models";
+
+/**
+ * Provedores com segredo no `.env` e seus modelos. Se a listagem falhar ou
+ * vier vazia, o provedor continua disponível com a lista estática.
+ */
+export async function fetchInsightsProviders(): Promise<
+	InsightsProviderOption[]
+> {
+	const providers = getConfiguredProviders(process.env);
+	const results = await Promise.allSettled(
+		providers.map((provider) => fetchProviderModels(provider)),
+	);
+
+	return providers.map((provider, index) => {
+		const result = results[index];
+
+		if (result?.status === "fulfilled" && result.value.length > 0) {
+			return { provider, models: result.value, listFailed: false };
+		}
+
+		return {
+			provider,
+			models: FALLBACK_MODELS.filter((model) => model.provider === provider),
+			listFailed: true,
+		};
+	});
+}
 
 export const savedInsightsPeriodSchema = z
 	.string()
