@@ -10,7 +10,7 @@
 
 > **Não há versão online hospedada.** Você precisa clonar o repositório e rodar localmente ou no seu próprio servidor.
 
-[![Version](https://img.shields.io/badge/version-2.10.0-blue?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.11.0-blue?style=flat-square)](CHANGELOG.md)
 [![Next.js](https://img.shields.io/badge/Next.js-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
@@ -479,7 +479,7 @@ OPENAI_API_KEY=
 GOOGLE_GENERATIVE_AI_API_KEY=
 MINIMAX_API_KEY=
 OPENROUTER_API_KEY=
-OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_BASE_URL=
 OLLAMA_API_KEY=
 
 # Logo.dev (opcional, necessário para logos automáticos de estabelecimentos)
@@ -522,6 +522,21 @@ curl -X POST https://seu-dominio/api/pluggy/sync \
 
 O agendamento é feito fora do OpenMonetis — não há cron embutido na imagem Docker nem no `docker-entrypoint.sh`. Configure a chamada periódica com o agendador que preferir: cron do host, GitHub Actions (`schedule` no workflow) ou Vercel Cron, por exemplo a cada poucas horas. A rota aplica um limite próprio de 6 requisições por hora por usuário e retorna `429` caso seja excedido.
 
+### Provedores de IA
+
+A tela de Insights mostra apenas os provedores configurados no `.env`. Basta definir a variável do provedor e reiniciar o app:
+
+| Provedor | Variável |
+| --- | --- |
+| ChatGPT | `OPENAI_API_KEY` |
+| Claude AI | `ANTHROPIC_API_KEY` |
+| Gemini | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| MiniMax | `MINIMAX_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Ollama | `OLLAMA_BASE_URL` |
+
+Os modelos são listados automaticamente pela API de cada provedor, com cache de 1 hora. Se a listagem falhar, a tela avisa e usa uma lista padrão.
+
 ### IA local com Ollama
 
 O provider Ollama permite gerar insights usando modelos locais. Instale e suba o Ollama no host onde o modelo ficará disponível:
@@ -531,7 +546,7 @@ ollama pull llama3.2
 ollama serve
 ```
 
-Configure a URL OpenAI-compatible no `.env`:
+Configure a URL OpenAI-compatible no `.env`. Sem `OLLAMA_BASE_URL`, o Ollama não aparece na tela:
 
 ```env
 OLLAMA_BASE_URL=http://localhost:11434/v1

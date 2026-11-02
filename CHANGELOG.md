@@ -5,6 +5,39 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.11.0] - 2026-11-02
+
+Esta versão faz a tela de Insights refletir o que a instalação realmente tem
+configurado. Até aqui ela mostrava todos os provedores, mesmo sem chave, e uma
+lista fixa de modelos que só mudava com uma nova versão do app. Agora só
+aparecem os provedores definidos no `.env`, e os modelos vêm direto da API de
+cada um, então um modelo novo fica disponível sem atualizar o OpenMonetis.
+
+### Adicionado
+
+- Listagem automática de modelos pela API de OpenAI, Anthropic, Google,
+  MiniMax, OpenRouter e Ollama, com cache de 1 hora.
+- Busca no seletor de modelos, necessária para listas grandes como a do
+  OpenRouter.
+- Aviso na tela quando a listagem falha, com uso de uma lista padrão.
+- Estado vazio em Insights quando nenhum provedor está configurado.
+
+### Alterado
+
+- **Mudança de comportamento:** provedor sem variável no `.env` deixa de
+  aparecer em Insights.
+- **Mudança de comportamento:** o Ollama agora exige `OLLAMA_BASE_URL`, sem
+  assumir `localhost` por padrão. Instalações que dependiam disso precisam
+  definir a variável.
+- O modelo padrão passa a ser escolhido entre os provedores configurados, e não
+  mais fixo em `gpt-5.5`.
+- Análises salvas com um provedor que saiu do `.env` continuam visíveis, e o
+  seletor volta para o modelo padrão.
+
+### Removido
+
+- Indicação "(Recomendado)" fixa no seletor de modelos.
+
 ## [2.10.0] - 2026-09-18
 
 Esta versão abre o app para compras em moeda estrangeira. Até aqui todo
