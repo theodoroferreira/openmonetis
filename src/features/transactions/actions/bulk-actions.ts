@@ -18,7 +18,7 @@ import {
 import type { ActionResult } from "@/shared/lib/types/actions";
 import { addMonthsToDate, parseLocalDateString } from "@/shared/utils/date";
 import { addMonthsToPeriod, parsePeriod } from "@/shared/utils/period";
-import { cleanupAttachmentsAfterTransactionDelete } from "./attachments";
+import { cleanupAttachmentsAfterTransactionDelete } from "../lib/attachment-cleanup";
 import {
 	centsToDecimalString,
 	type DeleteBulkInput,

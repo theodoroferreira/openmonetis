@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { getActor } from "@/shared/lib/auth/actor";
 import { auth } from "@/shared/lib/auth/config";
 
 /**
@@ -11,13 +12,31 @@ const getSessionCached = cache(async () => {
 	return auth.api.getSession({ headers: await headers() });
 });
 
+type Session = NonNullable<Awaited<ReturnType<typeof getSessionCached>>>;
+
+/**
+ * Único ponto de resolução de identidade: o ator, quando existe, vem antes da
+ * sessão. Assim as Server Actions rodam igual para o navegador e para o MCP.
+ *
+ * Quem roda como ator só enxerga `id`, `name` e `email` do usuário.
+ */
+async function resolveSession(): Promise<Session | null> {
+	const actor = getActor();
+
+	if (actor) {
+		return { user: actor.user } as unknown as Session;
+	}
+
+	return getSessionCached();
+}
+
 /**
  * Gets the current authenticated user
  * @returns User object
  * @throws Redirects to /login if user is not authenticated
  */
 export async function getUser() {
-	const session = await getSessionCached();
+	const session = await resolveSession();
 
 	if (!session?.user) {
 		redirect("/login");
@@ -32,7 +51,7 @@ export async function getUser() {
  * @throws Redirects to /login if user is not authenticated
  */
 export async function getUserId() {
-	const session = await getSessionCached();
+	const session = await resolveSession();
 
 	if (!session?.user) {
 		redirect("/login");
@@ -47,7 +66,7 @@ export async function getUserId() {
  * @throws Redirects to /login if user is not authenticated
  */
 export async function getUserSession() {
-	const session = await getSessionCached();
+	const session = await resolveSession();
 
 	if (!session?.user) {
 		redirect("/login");
@@ -62,5 +81,5 @@ export async function getUserSession() {
  * @note This function does not redirect if user is not authenticated
  */
 export async function getOptionalUserSession() {
-	return getSessionCached();
+	return resolveSession();
 }

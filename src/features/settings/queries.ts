@@ -19,6 +19,7 @@ interface UserPreferences {
 interface ApiToken {
 	id: string;
 	name: string;
+	scope: "companion" | "mcp";
 	tokenPrefix: string;
 	lastUsedAt: Date | null;
 	lastUsedIp: string | null;
@@ -61,6 +62,7 @@ async function fetchApiTokens(userId: string): Promise<ApiToken[]> {
 		.select({
 			id: apiTokens.id,
 			name: apiTokens.name,
+			scope: apiTokens.scope,
 			tokenPrefix: apiTokens.tokenPrefix,
 			lastUsedAt: apiTokens.lastUsedAt,
 			lastUsedIp: apiTokens.lastUsedIp,

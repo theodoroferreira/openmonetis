@@ -109,6 +109,9 @@ async function resetUserAppData(
 			.delete(schema.userPreferences)
 			.where(eq(schema.userPreferences.userId, userId));
 		await tx
+			.delete(schema.mcpAuditLog)
+			.where(eq(schema.mcpAuditLog.userId, userId));
+		await tx
 			.delete(schema.apiTokens)
 			.where(eq(schema.apiTokens.userId, userId));
 		await tx
@@ -631,6 +634,7 @@ export async function updatePreferencesAction(
 
 const createApiTokenSchema = z.object({
 	name: z.string().min(1, "Nome do dispositivo é obrigatório").max(100),
+	scope: z.enum(["companion", "mcp"]).default("companion"),
 });
 
 const revokeApiTokenSchema = z.object({
@@ -648,7 +652,7 @@ function hashToken(token: string): string {
 }
 
 export async function createApiTokenAction(
-	data: z.infer<typeof createApiTokenSchema>,
+	data: z.input<typeof createApiTokenSchema>,
 ): Promise<ActionResponse<{ token: string; tokenId: string }>> {
 	try {
 		const session = await auth.api.getSession({
@@ -675,6 +679,7 @@ export async function createApiTokenAction(
 			.values({
 				userId: session.user.id,
 				name: validated.name,
+				scope: validated.scope,
 				tokenHash,
 				tokenPrefix,
 				expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 ano

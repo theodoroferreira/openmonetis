@@ -2,6 +2,8 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { AutomationTab } from "@/features/mcp/components/automation-tab";
+import { fetchAutomationData } from "@/features/mcp/queries";
 import { OpenFinanceTab } from "@/features/open-finance/components/open-finance-tab";
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
@@ -42,6 +44,11 @@ export default async function Page() {
 		pluggyItems,
 		pluggyLinkTargets,
 	} = await fetchSettingsPageData(session.user.id);
+	const automation = await fetchAutomationData(session.user.id);
+
+	const requestHeaders = await headers();
+	const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
+	const mcpUrl = `${protocol}://${requestHeaders.get("host")}/api/mcp`;
 
 	return (
 		<div className="w-full">
@@ -55,6 +62,7 @@ export default async function Page() {
 							{pluggyEnabled ? (
 								<TabsTrigger value="open-finance">Open Finance</TabsTrigger>
 							) : null}
+							<TabsTrigger value="automacao">Automação</TabsTrigger>
 							<TabsTrigger value="nome">Alterar nome</TabsTrigger>
 							<TabsTrigger value="senha">Alterar senha</TabsTrigger>
 							<TabsTrigger value="passkeys">Passkeys</TabsTrigger>
@@ -125,7 +133,11 @@ export default async function Page() {
 								</p>
 							</div>
 							<Separator />
-							<CompanionTab tokens={userApiTokens} />
+							<CompanionTab
+								tokens={userApiTokens.filter(
+									(token) => token.scope === "companion",
+								)}
+							/>
 						</div>
 					</Card>
 				</TabsContent>
@@ -152,6 +164,26 @@ export default async function Page() {
 						</Card>
 					</TabsContent>
 				) : null}
+
+				<TabsContent value="automacao" className="mt-4">
+					<Card className="p-6">
+						<div className="space-y-4">
+							<div>
+								<h2 className="text-xl font-semibold mb-1">Automação</h2>
+								<p className="text-sm text-muted-foreground">
+									Conecte um assistente pelo servidor MCP para gerenciar suas
+									finanças e acompanhe o que ele fez.
+								</p>
+							</div>
+							<Separator />
+							<AutomationTab
+								mcpUrl={mcpUrl}
+								tokens={userApiTokens.filter((token) => token.scope === "mcp")}
+								auditEntries={automation.auditEntries}
+							/>
+						</div>
+					</Card>
+				</TabsContent>
 
 				<TabsContent value="nome" className="mt-4">
 					<Card className="p-6">

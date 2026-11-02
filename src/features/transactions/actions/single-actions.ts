@@ -22,9 +22,9 @@ import {
 	getBusinessTodayDate,
 	parseLocalDateString,
 } from "@/shared/utils/date";
+import { cleanupAttachmentsAfterTransactionDelete } from "../lib/attachment-cleanup";
 import { copyAttachmentsForImport } from "../lib/attachment-copy";
 import { detectInstallmentFromName } from "../lib/installment-detection";
-import { cleanupAttachmentsAfterTransactionDelete } from "./attachments";
 import {
 	buildOriginAmountsForRows,
 	buildShares,
